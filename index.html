@@ -122,6 +122,7 @@ import {
   drawHUD,
   drawCharacterWithRocket,
   drawPregamePeek,
+  calculateAwardCoinsAmount,
   clearAssetCache,
   setUIScale,
   setDevDrawHitboxes,
@@ -414,6 +415,38 @@ const equipped = launcherState.equipped;
 const _achDefs = await fetch('/achievements.json').then(r => r.json()).catch(() => []);
 const achievementsMgr = new AchievementsManager(_achDefs);
 
+const RUN_PERF_KEY = 'lnch_run_perf_v1';
+const PERF_DEFAULTS = {
+  topDistance: 0,
+  topAltitude: 0,
+  topSpeed: 0,
+  topImpact: 0,
+  topDuration: 0,
+};
+function loadRunPerformance() {
+  try {
+    const raw = localStorage.getItem(RUN_PERF_KEY);
+    if (!raw) return { ...PERF_DEFAULTS };
+    const parsed = JSON.parse(raw) || {};
+    return {
+      topDistance: Math.max(0, Number(parsed.topDistance) || 0),
+      topAltitude: Math.max(0, Number(parsed.topAltitude) || 0),
+      topSpeed: Math.max(0, Number(parsed.topSpeed) || 0),
+      topImpact: Math.max(0, Number(parsed.topImpact) || 0),
+      topDuration: Math.max(0, Number(parsed.topDuration) || 0),
+    };
+  } catch (e) {
+    return { ...PERF_DEFAULTS };
+  }
+}
+function saveRunPerformance(perf) {
+  try { localStorage.setItem(RUN_PERF_KEY, JSON.stringify(perf || PERF_DEFAULTS)); } catch (e) { }
+}
+let runPerformance = loadRunPerformance();
+let latestEodPerfRows = [];
+let latestEodCoinBreakdown = [];
+let latestEodStats = null;
+
 function saveState() {
   saveLauncherState({
     coins,
@@ -650,6 +683,7 @@ let corollaAccelerating = false;
 let lastTickTime = 0;
 let runMaxSpeed = 0;
 let runStartTime = null;
+let runImpactSum = 0;
 
 // Terrain: array of {x, y} points loaded from terrain.json
 const terrain = (terrainData?.points ?? []).map(p => ({ x: p.x, y: p.y }));
@@ -680,6 +714,7 @@ function resetRun() {
   hFlipFired  = false;
   runCoins    = 0;
   landmarkCoins = 0;
+  runImpactSum = 0;
   landmarks = createLandmarks(landmarkDefs, groundYAt);
   impactFeedback = null;
   impactFeedbackUntil = 0;
@@ -968,6 +1003,7 @@ function gameTick(dt) {
     onImpactFeedback: (data, until) => {
       impactFeedback = data;
       impactFeedbackUntil = until;
+      runImpactSum += Math.max(0, Number(data?.impact) || 0);
     },
     onSpawnExplosion: (x, y) => spawnLandmarkExplosion(landmarkParticles, x, y),
     onEndRun: () => {
@@ -1070,6 +1106,7 @@ function doLaunchActual() {
     baseGame.camera.easing = 12;
     runStartTime = performance.now();
     runMaxSpeed = 0;
+    runImpactSum = 0;
     try { triggerSoundEvent('music'); } catch (e) { }
     return;
   }
@@ -1089,6 +1126,7 @@ function doLaunchActual() {
   launched = true;
   runStartTime = performance.now();
   runMaxSpeed = 0;
+  runImpactSum = 0;
   try { triggerSoundEvent('music'); } catch (e) { }
 
   const hasGlider = !!gliderStats();
@@ -1151,14 +1189,105 @@ window.addEventListener('keyup', (e) => {
 
 function endRun() {
   launched = false;
+  const prevBestDist = Math.max(0, Number(bestDist) || 0);
   const baseStats = tracker?.getStats() ?? { maxDist: 0, maxHeight: 0 };
   const flightTime = runStartTime ? ((performance.now() - runStartTime) / 1000) : 0;
-  const stats = Object.assign({}, baseStats, { flightTime, maxSpeed: runMaxSpeed, destroyed: (destroyedLandmarks?.length || 0) });
+  const stats = Object.assign({}, baseStats, {
+    flightTime,
+    maxSpeed: runMaxSpeed,
+    impactSum: runImpactSum,
+    destroyed: (destroyedLandmarks?.length || 0),
+  });
   const dist  = Math.round(stats.maxDist || 0);
   if (dist > bestDist) bestDist = dist;
   totalRuns++;
-  // Coins: 1 per 30px horizontal + 1 per 20px vertical
-  runCoins = Math.round((stats.maxDist || 0) / 30 + (stats.maxHeight || 0) / 20) + landmarkCoins;
+
+  const currentPerf = {
+    distance: Math.max(0, Number(stats.maxDist) || 0),
+    altitude: Math.max(0, Number(stats.maxHeight) || 0),
+    speed: Math.max(0, Number(stats.maxSpeed) || 0),
+    impact: Math.max(0, Number(runImpactSum) || 0),
+    duration: Math.max(0, Number(flightTime) || 0),
+  };
+  const previousPerf = {
+    distance: prevBestDist,
+    altitude: Math.max(0, Number(runPerformance.topAltitude) || 0),
+    speed: Math.max(0, Number(runPerformance.topSpeed) || 0),
+    impact: Math.max(0, Number(runPerformance.topImpact) || 0),
+    duration: Math.max(0, Number(runPerformance.topDuration) || 0),
+  };
+  const ratioToPrev = (current, previous) => {
+    if (previous > 0) return Math.max(0, Math.min(1, current / previous));
+    return current > 0 ? 1 : 0;
+  };
+
+  const distanceCoins = calculateAwardCoinsAmount(currentPerf.distance, 'distance');
+  const altitudeCoins = calculateAwardCoinsAmount(currentPerf.altitude, 'altitude');
+  const speedCoins = calculateAwardCoinsAmount(currentPerf.speed, 'speed');
+  const impactCoins = calculateAwardCoinsAmount(currentPerf.impact, 'impact');
+  const durationCoins = calculateAwardCoinsAmount(currentPerf.duration, 'duration');
+
+  runCoins = distanceCoins + altitudeCoins + speedCoins + impactCoins + durationCoins;
+
+  latestEodStats = stats;
+  latestEodPerfRows = [
+    {
+      key: 'distance',
+      label: 'Distance',
+      current: currentPerf.distance,
+      previous: previousPerf.distance,
+      ratio: ratioToPrev(currentPerf.distance, previousPerf.distance),
+      unit: 'm',
+    },
+    {
+      key: 'altitude',
+      label: 'Top Altitude',
+      current: currentPerf.altitude,
+      previous: previousPerf.altitude,
+      ratio: ratioToPrev(currentPerf.altitude, previousPerf.altitude),
+      unit: 'm',
+    },
+    {
+      key: 'speed',
+      label: 'Top Speed',
+      current: currentPerf.speed,
+      previous: previousPerf.speed,
+      ratio: ratioToPrev(currentPerf.speed, previousPerf.speed),
+      unit: 'm/s',
+    },
+    {
+      key: 'impact',
+      label: 'Impact Sum',
+      current: currentPerf.impact,
+      previous: previousPerf.impact,
+      ratio: ratioToPrev(currentPerf.impact, previousPerf.impact),
+      unit: '',
+    },
+    {
+      key: 'duration',
+      label: 'Flight Duration',
+      current: currentPerf.duration,
+      previous: previousPerf.duration,
+      ratio: ratioToPrev(currentPerf.duration, previousPerf.duration),
+      unit: 's',
+    },
+  ];
+  latestEodCoinBreakdown = [
+    { key: 'distance', label: 'Top distance', coins: distanceCoins },
+    { key: 'altitude', label: 'Top altitude', coins: altitudeCoins },
+    { key: 'speed', label: 'Top speed', coins: speedCoins },
+    { key: 'impact', label: 'Impact sum', coins: impactCoins },
+    { key: 'duration', label: 'Flight duration', coins: durationCoins },
+  ];
+
+  runPerformance = {
+    topDistance: Math.max(previousPerf.distance, currentPerf.distance),
+    topAltitude: Math.max(previousPerf.altitude, currentPerf.altitude),
+    topSpeed: Math.max(previousPerf.speed, currentPerf.speed),
+    topImpact: Math.max(previousPerf.impact, currentPerf.impact),
+    topDuration: Math.max(previousPerf.duration, currentPerf.duration),
+  };
+  saveRunPerformance(runPerformance);
 
   // check achievements and award coins
   try {
@@ -1587,11 +1716,14 @@ sm.register('cutscene', {
 // ─────────────────────────────────────────────────────────────────────
 sm.register('eod', {
   onEnter() {
-    const stats = tracker?.getStats() ?? { maxDist: 0, maxHeight: 0, phase: 'horizontal' };
+    const stats = latestEodStats ?? tracker?.getStats() ?? { maxDist: 0, maxHeight: 0, phase: 'horizontal' };
     ui.showEOD({
       stats,
       coinsEarned: runCoins,
       impactCoins: landmarkCoins,
+      day: currentDay,
+      perfRows: latestEodPerfRows,
+      coinBreakdown: latestEodCoinBreakdown,
       phase: stats.phase,
       onContinue: () => sm.goTo('upgrades'),
     });

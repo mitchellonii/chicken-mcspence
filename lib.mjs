@@ -142,6 +142,31 @@ function _resolveUIColor(colors, role = 'text', fallback = '#fff') {
   return c[role] ?? c.text ?? c.default ?? fallback;
 }
 
+// Centralized coin economy calculator. Tune values here to rebalance rewards quickly.
+// `catagory` spelling is intentional to match external call sites.
+export function calculateAwardCoinsAmount(inputValue, catagory = '') {
+  const value = Math.max(0, Number(inputValue) || 0);
+  const key = String(catagory || '').toLowerCase().replace(/[^a-z]/g, '');
+
+  switch (key) {
+    case 'distance':
+      return Math.max(0, Math.round(value / 30));
+    case 'altitude':
+      return Math.max(0, Math.round(value / 50));
+    case 'speed':
+      return Math.max(0, Math.round(value * 1.5));
+    case 'impact':
+      return Math.max(0, Math.round(value / 4));
+    case 'duration':
+      return Math.max(0, Math.round(value / 3));
+    // input is impact ratio, e.g. `impact / breakImpact`
+    case 'landmarkimpact':
+      return Math.max(1, Math.round(value * 40));
+    default:
+      return Math.max(0, Math.round(value));
+  }
+}
+
 export async function clearAssetCache() {
   const cacheName = 'game-assets-v1';
   if (typeof caches === 'undefined') return false;
@@ -383,9 +408,10 @@ export function preloadAssets() {
 
           for (const asset of assets) {
             const isAudioExt = (/(mp3|wav|ogg|m4a|aac)$/i).test(asset.src);
+            const isVideoExt = (/(mp4|webm|ogv|mov|m4v)$/i).test(asset.src);
             const isFontExt = (/(ttf|otf|woff2?|eot)$/i).test(asset.src);
-            const inferredType = (asset.type || '').toLowerCase() || (isAudioExt ? 'audio' : (isFontExt ? 'font' : 'image'));
-            const entry = { id: asset.id, img: null, audio: null, font: null, fontFamily: (asset.family || asset.id), type: inferredType };
+            const inferredType = (asset.type || '').toLowerCase() || (isAudioExt ? 'audio' : (isVideoExt ? 'video' : (isFontExt ? 'font' : 'image')));
+            const entry = { id: asset.id, img: null, audio: null, video: null, videoSrc: null, font: null, fontFamily: (asset.family || asset.id), type: inferredType };
             refs.assets.push(entry);
 
             if (asset.event && typeof asset.event === 'string') refs.soundEvents[asset.event] = asset.id;
@@ -447,6 +473,29 @@ export function preloadAssets() {
                 };
                 a.addEventListener('canplaythrough', onLoaded, { once: true });
                 a.addEventListener('error', () => { console.error(`Failed to load audio asset "${asset.id}"`); entry.audio = null; onLoaded(); }, { once: true });
+              } else if (inferredType === 'video') {
+                const v = document.createElement('video');
+                v.preload = 'auto';
+                v.src = url;
+                v.loop = !!asset.loop;
+                v.crossOrigin = 'anonymous';
+                v.muted = asset.muted == null ? true : !!asset.muted;
+                v.playsInline = true;
+                const onLoaded = () => {
+                  entry.video = v;
+                  entry.videoSrc = url;
+                  loaded += 1;
+                  drawLoading();
+                  if (loaded === total) resolve();
+                };
+                v.addEventListener('loadeddata', onLoaded, { once: true });
+                v.addEventListener('error', () => {
+                  console.error(`Failed to load video asset "${asset.id}"`);
+                  entry.video = null;
+                  entry.videoSrc = null;
+                  onLoaded();
+                }, { once: true });
+                try { v.load(); } catch (e) { /* ignore */ }
               } else if (inferredType === 'font') {
                 const family = asset.family || asset.id;
                 const descriptors = {};
@@ -545,9 +594,10 @@ export function preloadAssets() {
           drawLoading();
           for (const asset of assets) {
             const isAudioExt = (/(mp3|wav|ogg|m4a|aac)$/i).test(asset.src);
+            const isVideoExt = (/(mp4|webm|ogv|mov|m4v)$/i).test(asset.src);
             const isFontExt = (/(ttf|otf|woff2?|eot)$/i).test(asset.src);
-            const inferredType = (asset.type || '').toLowerCase() || (isAudioExt ? 'audio' : (isFontExt ? 'font' : 'image'));
-            const entry = { id: asset.id, img: null, audio: null, font: null, fontFamily: (asset.family || asset.id), type: inferredType };
+            const inferredType = (asset.type || '').toLowerCase() || (isAudioExt ? 'audio' : (isVideoExt ? 'video' : (isFontExt ? 'font' : 'image')));
+            const entry = { id: asset.id, img: null, audio: null, video: null, videoSrc: null, font: null, fontFamily: (asset.family || asset.id), type: inferredType };
             refs.assets.push(entry);
             if (asset.event && typeof asset.event === 'string') refs.soundEvents[asset.event] = asset.id;
             const onLoaded = () => {
@@ -564,6 +614,17 @@ export function preloadAssets() {
               a.addEventListener('canplaythrough', () => { entry.audio = a; onLoaded(); }, { once: true });
               a.addEventListener('error', () => { entry.audio = null; onLoaded(); }, { once: true });
               a.load();
+            } else if (inferredType === 'video') {
+              const v = document.createElement('video');
+              v.preload = 'auto';
+              v.src = asset.src;
+              v.loop = !!asset.loop;
+              v.crossOrigin = 'anonymous';
+              v.muted = asset.muted == null ? true : !!asset.muted;
+              v.playsInline = true;
+              v.addEventListener('loadeddata', () => { entry.video = v; entry.videoSrc = asset.src; onLoaded(); }, { once: true });
+              v.addEventListener('error', () => { entry.video = null; entry.videoSrc = null; onLoaded(); }, { once: true });
+              try { v.load(); } catch (e) { onLoaded(); }
             } else if (inferredType === 'font') {
               const family = asset.family || asset.id;
               const descriptors = {};
@@ -778,7 +839,13 @@ export async function loadCutscenes({ getAsset, canvas } = {}) {
     grouped.get(t).push(item);
   }
   for (const [trigger, items] of grouped.entries()) {
-    const frames = items.map(it => ({ duration: 0, bg: it.bg ?? '#000', videoSrc: it.src }));
+    const frames = items.map(it => ({
+      duration: 0,
+      bg: it.bg ?? '#000',
+      videoAssetId: it.videoAssetId ?? null,
+      videoSrc: it.src ?? null,
+      assetId: it.assetId ?? null,
+    }));
     map[trigger] = _createSequenceCutscene(frames, { canvas: canvas ?? refs.canvas });
   }
   return { map, defs: list };
@@ -794,18 +861,27 @@ function _createSequenceCutscene(frames, { canvas } = {}) {
       if (prev && prev._video) try { prev._video.pause(); } catch (e) { }
       s._enteredFrameIdx = s.frameIdx;
       const cur = frames[s.frameIdx];
-      if (cur && cur.videoSrc) {
+      if (cur && (cur.videoAssetId || cur.videoSrc)) {
         if (!cur._video) {
-          const v = document.createElement('video');
-          v.src = cur.videoSrc;
-          v.muted = true;
-          v.playsInline = true;
-          v.preload = 'auto';
-          v.crossOrigin = 'anonymous';
-          v.addEventListener('loadedmetadata', () => {
-            if (!isNaN(v.duration) && v.duration > 0) cur.duration = v.duration * 1000;
-          });
-          cur._video = v;
+          const preloaded = cur.videoAssetId ? _getAssetEntry(cur.videoAssetId) : null;
+          if (preloaded?.video) {
+            cur._video = preloaded.video;
+            if (!cur.videoSrc && preloaded.videoSrc) cur.videoSrc = preloaded.videoSrc;
+          } else {
+            const v = document.createElement('video');
+            v.src = cur.videoSrc;
+            v.muted = true;
+            v.playsInline = true;
+            v.preload = 'auto';
+            v.crossOrigin = 'anonymous';
+            v.addEventListener('loadedmetadata', () => {
+              if (!isNaN(v.duration) && v.duration > 0) cur.duration = v.duration * 1000;
+            });
+            cur._video = v;
+          }
+        }
+        if (cur._video && !(cur.duration > 0) && !isNaN(cur._video.duration) && cur._video.duration > 0) {
+          cur.duration = cur._video.duration * 1000;
         }
         try { cur._video.currentTime = s.frameElapsed / 1000; } catch (e) { }
         cur._video.play().catch(() => { });
@@ -836,7 +912,7 @@ function _drawCutsceneFrame(ctx, frame, elapsed, total, { canvas } = {}) {
   const h = c.height;
   ctx.fillStyle = frame.bg ?? '#000';
   ctx.fillRect(0, 0, w, h);
-  if (frame.videoSrc || frame._video) {
+  if (frame.videoAssetId || frame.videoSrc || frame._video) {
     const video = frame._video;
     if (video && video.readyState >= 2 && video.videoWidth && video.videoHeight) {
       const vw = video.videoWidth;
@@ -1373,8 +1449,8 @@ export class UIOverlay {
   }
 
   /** Show end-of-run stats. */
-  showEOD({ stats, coinsEarned, impactCoins, phase, onContinue, fonts, colors } = {}) {
-    this._setPanel({ type: 'eod', stats, coinsEarned, impactCoins, phase, onContinue, fonts, colors });
+  showEOD({ stats, coinsEarned, impactCoins, phase, onContinue, day, fonts, colors, perfRows = [], coinBreakdown = [] } = {}) {
+    this._setPanel({ type: 'eod', stats, coinsEarned, impactCoins, phase, onContinue, day, fonts, colors, perfRows, coinBreakdown });
   }
 
   setFonts(fonts = null) {
@@ -2191,11 +2267,24 @@ export class UIOverlay {
     const p = this._panel;
     const fonts = this._getFonts();
     const colors = this._getColors();
-    const { stats, coinsEarned, impactCoins, phase, onContinue } = p;
+    const { stats, coinsEarned, phase, day, perfRows = [], coinBreakdown = [] } = p;
+    if (!p._enteredAt) p._enteredAt = performance.now();
+    const now = performance.now();
+    const enterMs = 380;
+    const t = Math.max(0, Math.min(1, (now - p._enteredAt) / enterMs));
+    const easeOut = 1 - Math.pow(1 - t, 3);
+    const slideX = (1 - easeOut) * (w + sUi(80));
+
+    const barAnimDelayMs = 140;
+    const barAnimMs = 1100;
+    const barT = Math.max(0, Math.min(1, (now - p._enteredAt - barAnimDelayMs) / barAnimMs));
+    const barEase = 1 - Math.pow(1 - barT, 3);
+
     const panelW = Math.min(sUi(400), w - sUi(40));
-    const panelH = sUi(320);
-    const px = (w - panelW) / 2;
-    const py = (h - panelH) / 2;
+    const panelH = Math.min(h - sUi(30), sUi(500));
+    const px = (w - panelW) / 2 + slideX;
+    const py = Math.min((h - panelH) / 2 + 100, h - panelH - sUi(8));
+    const centerX = w / 2 + slideX;
 
     ctx.fillStyle = 'rgba(0,0,0,0.85)';
     ctx.fillRect(0, 0, w, h);
@@ -2243,29 +2332,70 @@ export class UIOverlay {
     ctx.textAlign = 'center';
     ctx.fillStyle = _resolveUIColor(colors, 'title', '#fff');
     ctx.font = _scaledUIFont(24, { fonts, role: 'title', weight: 'bold' });
-    const title = phase === 'complete' ? '🌕 MOON REACHED!' : 'RUN COMPLETE';
-    ctx.fillText(title, w / 2, py + sUi(44));
+    const title = `Day ${Number.isFinite(Number(day)) ? Number(day) : '?'}`;
+    ctx.fillText("Launch Completed!", centerX, h / 2 - sUi(168));
+    ctx.fillText(title, centerX, h / 2 - sUi(140));
 
-    ctx.font = _scaledUIFont(17, { fonts, role: 'body' });
+    ctx.font = _scaledUIFont(14, { fonts, role: 'body' });
     ctx.fillStyle = _resolveUIColor(colors, 'body', '#ccc');
-    const dist = Math.round(stats?.maxDist ?? 0);
-    const height = Math.round(stats?.maxHeight ?? 0);
-    ctx.fillText(`Max Distance:  ${dist} m`, w / 2, py + sUi(90));
-    ctx.fillText(`Max Height:    ${height} m`, w / 2, py + sUi(118));
 
-    const impactAward = Math.max(0, impactCoins ?? 0);
-    const baseAward = Math.max(0, (coinsEarned ?? 0) - impactAward);
     ctx.fillStyle = _resolveUIColor(colors, 'heading', '#fff');
     ctx.font = _scaledUIFont(20, { fonts, role: 'heading', weight: 'bold' });
-    ctx.fillText(`+${coinsEarned ?? 0} coins`, w / 2, py + sUi(158));
-    if (impactAward > 0) {
-      ctx.font = _scaledUIFont(14, { fonts, role: 'meta' });
-      ctx.fillStyle = _resolveUIColor(colors, 'meta', '#ccc');
-      ctx.fillText(`Impact bonus: +${impactAward}`, w / 2, py + sUi(182));
-      ctx.fillText(`Distance/height: +${baseAward}`, w / 2, py + sUi(200));
+    const animTotalCoins = Math.max(0, Math.round((Number(coinsEarned) || 0) * barEase));
+    ctx.fillText(`+${animTotalCoins} coins`, centerX, py + sUi(132));
+
+    // Progress bars against previous best performance.
+    const rows = Array.isArray(perfRows) ? perfRows : [];
+    const breakdown = Array.isArray(coinBreakdown) ? coinBreakdown : [];
+    const coinsByKey = new Map(breakdown.map(b => [String(b?.key || ''), Math.max(0, Number(b?.coins) || 0)]));
+    const barLeft = px + sUi(18);
+    const barRight = px + panelW - sUi(18);
+    const barW = barRight - barLeft;
+    const barH = sUi(18);
+    let y = py + sUi(246);
+
+    const formatMetric = (v, unit, progress = 1) => {
+      const n = Number(v) || 0;
+      const a = Math.max(0, n * Math.max(0, Math.min(1, progress)));
+      return unit ? `${a.toFixed(unit === 's' ? 1 : 0)} ${unit}` : `${a.toFixed(0)}`;
+    };
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowDelay = i * 80;
+      const rowT = Math.max(0, Math.min(1, (now - p._enteredAt - barAnimDelayMs - rowDelay) / barAnimMs));
+      const rowEase = 1 - Math.pow(1 - rowT, 3);
+      const ratio = Math.max(0, Math.min(1, Number(row?.ratio) || 0));
+      const currentText = formatMetric(row?.current, row?.unit || '', rowEase);
+      const rowCoins = coinsByKey.get(String(row?.key || '')) ?? 0;
+      const rowCoinsAnim = Math.max(0, Math.round(rowCoins * rowEase));
+
+      ctx.fillStyle = 'rgba(255,255,255,0.16)';
+      _roundRect(ctx, barLeft, y, barW, barH, sUi(4));
+      ctx.fill();
+
+      ctx.fillStyle = _resolveUIColor(colors, 'hudAccent', '#f5c542');
+      const fillW = Math.round(barW * ratio * rowEase);
+      if (fillW > 0) {
+        _roundRect(ctx, barLeft, y, fillW, barH, sUi(4));
+        ctx.fill();
+      }
+
+      // Text inside progress bar
+      ctx.font = _scaledUIFont(11, { fonts, role: 'meta', weight: 'bold' });
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = _resolveUIColor(colors, 'title', '#fff');
+      ctx.fillText(`${row?.label ?? 'Metric'}: ${currentText}`, barLeft + sUi(6), y + barH / 2);
+
+      ctx.textAlign = 'right';
+      ctx.fillStyle = _resolveUIColor(colors, 'status', '#9bd89b');
+      ctx.fillText(`+${rowCoinsAnim}`, barRight - sUi(6), y + barH / 2);
+      ctx.textBaseline = 'alphabetic';
+
+      y += sUi(27);
     }
 
-    this._drawButton(ctx, w / 2 - sUi(80), py + panelH - sUi(60), sUi(160), sUi(44), 'CONTINUE →', '#4a90e2');
+    this._drawButton(ctx, centerX - sUi(80), py + panelH - sUi(54), sUi(160), sUi(44), 'CONTINUE →', '#4a90e2');
   }
 
   // ── Utilities ───────────────────────────────────────────────
@@ -3210,7 +3340,7 @@ export function checkLandmarkCollisions({
     const pct = Math.max(0, Math.min(1, impact / breakImpact));
     if (!lm.coinsAwarded) {
       const impactRatio = Math.min(impact / breakImpact, 2);
-      const award = Math.max(1, Math.round(impactRatio * 4 * 10));
+      const award = calculateAwardCoinsAmount(impactRatio, 'landmarkImpact');
       lm.coinsAwarded = true;
       onCoinsAward?.(award);
     }

@@ -65,6 +65,8 @@
 
   { "id": "cutscene-telescope", "src": "/img/cutscenes/telescope.png" },
   { "id": "cutscene-moon-land", "src": "/img/cutscenes/moon_land.png" },
+  { "id": "cutscene-video-intro", "src": "/img/video/Intro.mp4", "type": "video" },
+  { "id": "cutscene-video-cut-2", "src": "/img/video/Cut-2.mp4", "type": "video" },
 
   { "id": "landmark-silo", "src": "/img/landmarks/silo.png", "scale":0.7 },
   { "id": "landmark-dish", "src": "/img/landmarks/dish.png", "scale":0.7 },
