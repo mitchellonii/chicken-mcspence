@@ -1,0 +1,10 @@
+[
+  { "trigger": "init", "src": "/img/video/Intro.mp4", "bg": "#000", "reprompt": true, "skippableOnFirstPlay": true },
+  { "trigger": "intro", "src": "/img/video/Cut-2.mp4", "bg": "#000", "reprompt": false, "skippableOnFirstPlay": true },
+  { "trigger": "first-significant-launch", "src": "/img/video/Intro.mp4", "bg": "#000", "distance": { "type": "horizontal", "value": 14000 }, "reprompt": false, "skippableOnFirstPlay": true },
+  { "trigger": "getting-there", "src": "/img/video/Intro.mp4", "bg": "#000", "distance": { "type": "horizontal", "value": 13000 }, "reprompt": false, "skippableOnFirstPlay": true },
+  { "trigger": "reached-rocket", "src": "/img/video/Intro.mp4", "bg": "#000", "distance": { "type": "horizontal", "value": 40005 }, "reprompt": false, "skippableOnFirstPlay": true },
+    { "trigger": "bad-ending", "src": "/img/video/Intro.mp4", "bg": "#000", "distance": { "type": "horizontal", "value": 60000 }, "reprompt": false, "skippableOnFirstPlay": true },
+
+  { "trigger": "moon", "src": "/img/video/Intro.mp4", "bg": "#000", "reprompt": false, "skippableOnFirstPlay": true }
+]

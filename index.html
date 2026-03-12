@@ -1,0 +1,1712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chicken McSpence</title>
+  <style>
+    body{
+      margin:0;
+    }
+    #gameCanvas {
+      display: block;
+      margin: 0 auto;
+      background-color: #f0f0f0;
+      aspect-ratio: 1;
+      width: min(100vw, 100vh)
+    }
+    #devReset {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      padding: 8px 12px;
+      font-size: 14px;
+      background-color: #eee;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+      z-index: 1000;
+    }
+    #devCoins {
+      position: fixed;
+      top: 48px;
+      right: 10px;
+      padding: 8px 12px;
+      font-size: 14px;
+      background-color: #eee;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+      z-index: 1000;
+    }
+    #devClearCache {
+      position: fixed;
+      top: 86px;
+      right: 10px;
+      padding: 8px 12px;
+      font-size: 14px;
+      background-color: #eee;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+      z-index: 1000;
+    }
+    #qualityBtn {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      padding: 8px 12px;
+      font-size: 14px;
+      background-color: #eee;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+      z-index: 1000;
+    }
+    #devHitboxesBtn {
+      position: fixed;
+      top: 48px;
+      left: 10px;
+      padding: 8px 12px;
+      font-size: 14px;
+      background-color: #eee;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="800"></canvas>
+  <button id="qualityBtn">Quality</button>
+  <button id="devHitboxesBtn">Hitboxes: Off</button>
+  <button id="devReset">Factory Reset</button>
+  <button id="devClearCache">Clear Asset Cache</button>
+  <button id="devCoins">+100 Coins</button>
+  <script src="lib.mjs" type="module"></script>
+  <script defer type="module">
+   /**
+ * main.js — Launcher Game
+ *
+ * Scenes:  pregame → [game] → cutscene → eod → upgrades → pregame
+ * Physics: charge bar, angled launch, gravity, bounce, skid to stop
+ * Progression: horizontal run → objective flip → vertical moon run
+ */
+
+import {
+  registerCanvas, preloadAssets, registerGame, drawAsset,
+  registerClickHandler,
+  Game, Character,
+  SceneManager, UIOverlay, DialogueOverlay,
+  Upgrades, ProgressTracker, loadCutscenes,
+  getAssetImage,
+  triggerSoundEvent, playSoundById, playMusicById,
+  clearLauncherStorage, loadLauncherState, saveLauncherState,
+  saveDestroyedLandmarks,
+  saveEquipped,
+  makeNoopCutscene, buildCutsceneDefMap, createSeenCutsceneStore,
+  shouldAllowSkip, initDistanceTriggers,
+  checkDistanceTriggers,
+  CutsceneRunner,
+  bindLauncherInput,
+  createGroundYAt, createLandmarks,
+  checkLandmarkCollisions,
+  drawLandmarks,
+  spawnThrustBurst,
+  updateParticles,
+  drawParticles,
+  spawnLandmarkExplosion,
+  updateLandmarkParticles,
+  drawLandmarkParticles,
+  drawBackground,
+  drawHUD,
+  drawCharacterWithRocket,
+  drawPregamePeek,
+  clearAssetCache,
+  setUIScale,
+  setDevDrawHitboxes,
+} from './lib.mjs';
+
+// Canvas-based achievements notices
+const achievementNotices = [];
+function addAchievementNotice(def, delay = 0) {
+  const now = performance.now();
+  achievementNotices.push({
+    id: def.id,
+    title: def.title,
+    desc: def.desc,
+    reward: def.reward || 0,
+    start: now + (delay || 0),
+    duration: 3200,
+    enter: 360,
+    exit: 420,
+    height: 64,
+  });
+}
+
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+function easeInCubic(t) { return t * t * t; }
+function drawAchievementNotices(ctx) {
+  if (!achievementNotices.length) return;
+  const now = performance.now();
+  const uiScale = Math.max(1, window.UI_SCALE || 1);
+  // filter active
+  const active = achievementNotices.filter(n => now >= n.start && now <= (n.start + n.duration + n.exit));
+  // remove old
+  for (let i = achievementNotices.length - 1; i >= 0; i--) {
+    const n = achievementNotices[i];
+    if (now > (n.start + n.duration + n.exit)) achievementNotices.splice(i, 1);
+  }
+  const margin = 8 * uiScale;
+  for (let i = 0; i < active.length; i++) {
+    const n = active[i];
+    const elapsed = now - n.start;
+    const enter = n.enter;
+    const exit = n.exit;
+    const total = n.duration;
+    const width = Math.min(520 * uiScale, ctx.canvas.width - (24 * uiScale));
+    const h = n.height * uiScale;
+    const targetY = 12 * uiScale + i * (h + margin);
+    let y = targetY;
+    let alpha = 1;
+    if (elapsed < enter) {
+      const t = Math.max(0, Math.min(1, elapsed / enter));
+      const p = easeOutCubic(t);
+      y = -h - (20 * uiScale) + (targetY + h + (20 * uiScale)) * p;
+      alpha = p;
+    } else if (elapsed > (total - exit)) {
+      const t = Math.max(0, Math.min(1, (elapsed - (total - exit)) / exit));
+      const p = easeInCubic(t);
+      y = targetY + ( -h - (20 * uiScale) - targetY ) * p;
+      alpha = 1 - p;
+    } else {
+      y = targetY;
+      alpha = 1;
+    }
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    // background rounded rect
+    const x = ctx.canvas.width / 2 - width / 2;
+    const radius = 8 * uiScale;
+    ctx.fillStyle = 'rgba(255,255,255,0.98)';
+    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+    ctx.lineWidth = Math.max(1, uiScale);
+    roundRect(ctx, x, y, width, h, radius, true, true);
+    // text
+    ctx.fillStyle = '#222';
+    ctx.font = `bold ${Math.round(16 * uiScale)}px sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText(n.title, x + (14 * uiScale), y + (22 * uiScale));
+    ctx.font = `${Math.round(12 * uiScale)}px sans-serif`;
+    ctx.fillStyle = '#444';
+    ctx.fillText(n.desc, x + (14 * uiScale), y + (42 * uiScale));
+    ctx.fillStyle = '#2b8a2b';
+    ctx.fillText('+' + (n.reward || 0) + ' coins', x + width - (14 * uiScale) - ctx.measureText('+' + (n.reward || 0) + ' coins').width, y + (22 * uiScale));
+    ctx.restore();
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r, fill, stroke) {
+  if (typeof r === 'undefined') r = 5;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+  if (fill) ctx.fill();
+  if (stroke) ctx.stroke();
+}
+
+class AchievementsManager {
+  constructor(defs) {
+    this.defs = Array.isArray(defs) ? defs : [];
+    this.key = 'lnch_achievements_v1';
+    try {
+      const raw = localStorage.getItem(this.key) || '[]';
+      this.unlocked = new Set(JSON.parse(raw));
+    } catch (e) { this.unlocked = new Set(); }
+  }
+  persist() { localStorage.setItem(this.key, JSON.stringify([...this.unlocked])); }
+  checkAndUnlock(stats) {
+    let total = 0;
+    const newly = [];
+    for (const d of this.defs) {
+      if (this.unlocked.has(d.id)) continue;
+      let ok = false;
+      switch ((d.metric||'').toLowerCase()) {
+        case 'distance': ok = (stats.maxDist || 0) >= (d.threshold || 0); break;
+        case 'height': ok = (stats.maxHeight || 0) >= (d.threshold || 0); break;
+        case 'speed': ok = (stats.maxSpeed || 0) >= (d.threshold || 0); break;
+        case 'time': ok = (stats.flightTime || 0) >= (d.threshold || 0); break;
+        case 'destroyed': ok = (stats.destroyed || 0) >= (d.threshold || 0); break;
+        default: break;
+      }
+      if (ok) {
+        this.unlocked.add(d.id);
+        this.persist();
+        total += (d.reward || 0);
+        newly.push(d);
+      }
+    }
+    // schedule canvas notifications for newly unlocked
+    newly.forEach((d, i) => addAchievementNotice(d, i * 350));
+    return { awarded: total, unlocked: newly };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Canvas setup
+// ─────────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('gameCanvas');
+const qualityBtn = document.getElementById('qualityBtn');
+const devHitboxesBtn = document.getElementById('devHitboxesBtn');
+const devResetBtn = document.getElementById('devReset');
+const devClearCacheBtn = document.getElementById('devClearCache');
+const devCoinsBtn = document.getElementById('devCoins');
+let W = canvas.width;
+let H = canvas.height;
+
+const UI_SCALE_KEY = 'launcher_ui_scale';
+const DEV_HITBOXES_KEY = 'launcher_dev_hitboxes';
+const readStoredDevHitboxes = () => {
+  try { return localStorage.getItem(DEV_HITBOXES_KEY) === '1'; } catch (e) { return false; }
+};
+const writeStoredDevHitboxes = (enabled) => {
+  try { localStorage.setItem(DEV_HITBOXES_KEY, enabled ? '1' : '0'); } catch (e) { }
+};
+const formatHitboxesLabel = (enabled) => `Hitboxes: ${enabled ? 'On' : 'Off'}`;
+const readStoredUiScale = () => {
+  try {
+    const raw = localStorage.getItem(UI_SCALE_KEY);
+    if (raw == null) return 3;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return 3;
+    return n >= 3 ? 3 : (n >= 2 ? 2 : 1);
+  } catch (e) {
+    return 3;
+  }
+};
+const writeStoredUiScale = (v) => {
+  try { localStorage.setItem(UI_SCALE_KEY, String(v >= 3 ? 3 : (v >= 2 ? 2 : 1))); } catch (e) { }
+};
+const formatQualityLabel = (v) => (v >= 3 ? 'Quality: Ultra (3x)' : (v >= 2 ? 'Quality: High (2x)' : 'Quality: Low (1x)'));
+const applyUIScaleLive = (scaleValue) => {
+  const next = setUIScale(scaleValue);
+  canvas.width = 500 * next;
+  canvas.height = 500 * next;
+  W = canvas.width;
+  H = canvas.height;
+  if (qualityBtn) qualityBtn.textContent = formatQualityLabel(next);
+  return next;
+};
+
+const initialUiScale = readStoredUiScale();
+applyUIScaleLive(initialUiScale);
+const initialDevHitboxes = readStoredDevHitboxes();
+setDevDrawHitboxes(initialDevHitboxes);
+if (devHitboxesBtn) devHitboxesBtn.textContent = formatHitboxesLabel(initialDevHitboxes);
+registerCanvas(canvas);
+await preloadAssets();
+try { registerClickHandler(() => { triggerSoundEvent('click'); }); } catch (e) { }
+const terrainData = await fetch('/terrain.json').then(r => r.json());
+
+devResetBtn?.addEventListener('click', () => {
+  clearLauncherStorage();
+  try { triggerSoundEvent('click'); } catch (e) { }
+  location.reload();
+});
+
+devClearCacheBtn?.addEventListener('click', async () => {
+  try {
+    const ok = await clearAssetCache();
+    console.log('clearAssetCache =>', ok);
+    try { triggerSoundEvent('click'); } catch (e) {}
+    alert(ok ? 'Asset cache cleared' : 'No cache or failed to clear');
+  } catch (e) {
+    console.error(e);
+    alert('Error clearing cache (see console)');
+  }
+});
+
+qualityBtn?.addEventListener('click', () => {
+  const cur = (window.UI_SCALE >= 3) ? 3 : ((window.UI_SCALE >= 2) ? 2 : 1);
+  const next = cur === 1 ? 2 : (cur === 2 ? 3 : 1);
+  const oldW = W;
+  const oldH = H;
+  const oldScale = Math.max(1, cur);
+  const oldCamX = baseGame?.camera?.x ?? 0;
+  const oldCamY = baseGame?.camera?.y ?? 0;
+  writeStoredUiScale(next);
+  applyUIScaleLive(next);
+  const newScale = Math.max(1, window.UI_SCALE || 1);
+  const oldViewW = oldW / oldScale;
+  const oldViewH = oldH / oldScale;
+  const newViewW = W / newScale;
+  const newViewH = H / newScale;
+
+  // Reframe camera immediately after viewport resize (no one-frame lag).
+  if (baseGame && baseGame.camera) {
+    if (sm?._current === 'game' && hero) {
+      if (baseGame.camera.followMainCharacter) {
+        const tx = hero.x - newViewW / 2;
+        const ty = hero.y - newViewH / 2;
+        baseGame.camera.targetX = tx;
+        baseGame.camera.targetY = ty;
+        baseGame.camera.x = tx;
+        baseGame.camera.y = ty;
+      } else {
+        const nx = oldCamX - (newViewW - oldViewW) / 2;
+        const ny = oldCamY - (newViewH - oldViewH) / 2;
+        baseGame.camera.targetX = nx;
+        baseGame.camera.targetY = ny;
+        baseGame.camera.x = nx;
+        baseGame.camera.y = ny;
+      }
+    }
+  }
+  // keep game/session state intact; no reload
+});
+
+devHitboxesBtn?.addEventListener('click', () => {
+  const enabled = !(window.DEV_DRAW_HITBOXES === true);
+  setDevDrawHitboxes(enabled);
+  writeStoredDevHitboxes(enabled);
+  devHitboxesBtn.textContent = formatHitboxesLabel(enabled);
+  try { triggerSoundEvent('click'); } catch (e) { }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+//  Persistent state (load upgrades from JSON)
+// ─────────────────────────────────────────────────────────────────────
+const _upgradesData = await fetch('/upgrades.json').then(r => r.json()).catch(() => ({}));
+const powerCatalog = _upgradesData.powerCatalog || [];
+const bounceCatalog = _upgradesData.bounceCatalog || [];
+const densityCatalog = _upgradesData.densityCatalog || [];
+const fuelCatalog = _upgradesData.fuelCatalog || [];
+const thrusterCatalog = _upgradesData.thrusterCatalog || [];
+const gliderCatalog = _upgradesData.gliderCatalog || [];
+
+const upgrades = new Upgrades('launcher_v1', [
+  ...powerCatalog,
+  ...bounceCatalog,
+  ...densityCatalog,
+  ...fuelCatalog,
+  ...thrusterCatalog,
+  ...gliderCatalog,
+].map(item => ({ id: item.id, label: item.label, maxLevel: 1, cost: () => item.cost, icon: item.icon })));
+
+const launcherState = loadLauncherState();
+let coins = launcherState.coins;
+let bestDist = launcherState.bestDist;
+let moonUnlocked = launcherState.moonUnlocked;
+let totalRuns = launcherState.totalRuns;
+let currentDay = launcherState.currentDay;
+let seenObjectiveCs = launcherState.seenObjectiveCs;
+let seenMoonCs = launcherState.seenMoonCs;
+let seenIntroCs = launcherState.seenIntroCs;
+let destroyedLandmarks = launcherState.destroyedLandmarks;
+const equipped = launcherState.equipped;
+
+// Load achievement definitions and manager
+const _achDefs = await fetch('/achievements.json').then(r => r.json()).catch(() => []);
+const achievementsMgr = new AchievementsManager(_achDefs);
+
+function saveState() {
+  saveLauncherState({
+    coins,
+    bestDist,
+    moonUnlocked,
+    totalRuns,
+    currentDay,
+    seenObjectiveCs,
+    seenMoonCs,
+    seenIntroCs,
+  });
+}
+
+
+devCoinsBtn?.addEventListener('click', () => {
+  coins += 100;
+  try { triggerSoundEvent('click'); } catch (e) { }
+  saveState();
+});
+
+// ─────────────────────────────────────────────────────────────────────
+//  World / physics constants
+// ─────────────────────────────────────────────────────────────────────
+const GROUND_Y   = 380;          // world-space ground surface Y
+const LAUNCH_X   = 160;          // hero world X at launch pad
+const LAUNCH_Y   = GROUND_Y -5;// hero stands here
+const START_GROUND_SCREEN_RATIO = 0.9; // keep most of frame as sky at day start
+const START_HERO_SCREEN_X = 0.22;      // keep launchpad left-of-center
+
+const H_THRESHOLD = 10000;        // horizontal px → flip to moon objective
+const V_THRESHOLD = 7000;        // px upward → moon reached / win
+const TRIGGER_REACHED_ROCKET = 'reached-rocket';
+const TRIGGER_MOON = 'moon';
+
+// Upgrade-scaled values
+const upgradeCategories = [
+  { id: 'power', label: 'Sling', items: powerCatalog },
+  { id: 'bounce', label: 'Bounce', items: bounceCatalog },
+  { id: 'density', label: 'Density', items: densityCatalog },
+  { id: 'fuel', label: 'Fuel', items: fuelCatalog },
+  { id: 'thruster', label: 'Thruster', items: thrusterCatalog },
+  { id: 'glider', label: 'Glider', items: gliderCatalog },
+];
+
+function getEquippedId(categoryId) {
+  return equipped[categoryId] ?? null;
+}
+
+function setEquippedId(categoryId, id) {
+  equipped[categoryId] = id;
+  saveEquipped(equipped);
+}
+
+function resolveEquipped(catalog, categoryId) {
+  const equippedId = getEquippedId(categoryId);
+  if (equippedId) {
+    const item = catalog.find(i => i.id === equippedId);
+    if (item && upgrades.getLevel(item.id) > 0) return item;
+  }
+
+  let fallback = null;
+  for (const item of catalog) {
+    if (upgrades.getLevel(item.id) > 0) fallback = item;
+  }
+  if (fallback && equippedId !== fallback.id) {
+    setEquippedId(categoryId, fallback.id);
+  }
+  if (!fallback && equippedId) {
+    setEquippedId(categoryId, null);
+  }
+  return fallback;
+}
+
+function getLockedUpgradeIds() {
+  const locked = new Set();
+  const hasTrigger = (trigger) => {
+    if (!trigger) return true;
+    const reachedRocketByProgress = !!moonUnlocked || bestDist >= H_THRESHOLD;
+    if (typeof _cutsceneSeenStore?.hasSeen === 'function') {
+      if (_cutsceneSeenStore.hasSeen(trigger)) return true;
+      if (trigger === 'objective' && _cutsceneSeenStore.hasSeen(TRIGGER_REACHED_ROCKET)) return true;
+      if (trigger === TRIGGER_REACHED_ROCKET && _cutsceneSeenStore.hasSeen('objective')) return true;
+      if ((trigger === 'moon' || trigger === TRIGGER_MOON) && _cutsceneSeenStore.hasSeen(TRIGGER_MOON)) return true;
+    }
+    if (trigger === 'intro') return !!seenIntroCs;
+    if (trigger === 'objective') return !!seenObjectiveCs || reachedRocketByProgress;
+    if (trigger === TRIGGER_REACHED_ROCKET) return !!seenObjectiveCs || reachedRocketByProgress;
+    if (trigger === 'moon' || trigger === TRIGGER_MOON) return !!seenMoonCs;
+    return false;
+  };
+  const isUnlocked = (item) => {
+    const req = item?.unlockRequirements;
+    if (!req) return true;
+    if (typeof req.distance === 'number' && bestDist < req.distance) return false;
+    if (req.trigger && !hasTrigger(req.trigger)) return false;
+    return true;
+  };
+  const allItems = [
+    ...powerCatalog,
+    ...bounceCatalog,
+    ...densityCatalog,
+    ...fuelCatalog,
+    ...thrusterCatalog,
+    ...gliderCatalog,
+  ];
+  for (const item of allItems) {
+    if (!isUnlocked(item)) locked.add(item.id);
+  }
+  return [...locked];
+}
+
+const launchPower  = () => resolveEquipped(powerCatalog, 'power')?.power ?? 18;
+const bounceFactor = () => resolveEquipped(bounceCatalog, 'bounce')?.bounce ?? 0.35;
+const fuelCapacity = () => 100 + (resolveEquipped(fuelCatalog, 'fuel')?.fuel ?? 0);     // base 100 + fuel upgrade units
+const BASE_THRUST  = 0;
+const boostPower   = () => BASE_THRUST + (resolveEquipped(thrusterCatalog, 'thruster')?.thrust ?? 0);
+const densityBoost = () => resolveEquipped(densityCatalog, 'density')?.density ?? 1;
+const DEFAULT_MAX_SPEED = 15;
+const maxSpeedCap = () => resolveEquipped(densityCatalog, 'density')?.maxSpeed ?? DEFAULT_MAX_SPEED;
+const equippedMaxSpeed = () => resolveEquipped(densityCatalog, 'density')?.maxSpeed;
+const gliderStats  = () => resolveEquipped(gliderCatalog, 'glider') ?? null;
+const hasThrusterEquipped = () => !!resolveEquipped(thrusterCatalog, 'thruster');
+const isCorollaEquipped = () => {
+  const glider = gliderStats();
+  return glider?.mode === 'corolla' || glider?.id === 'equip-glider-corolla';
+};
+
+const GRAVITY      = 0.32;
+const AIR_DRAG     = 0.998;
+const GROUND_DRAG  = 0.80;
+const STOP_THRESH  = 0.3;       // speed below which hero is considered stopped
+const SQUASH_HOLD_MS = 0;     // hold first bounce frame at end of run
+const RESULTS_DELAY_SECONDS = 1; // delay results screen by seconds
+const EOD_EXTRA_SECONDS = 1;     // extra seconds after end-of-day before showing results
+const HERO_RADIUS = 14;
+const HERO_DRAW_OFFSET_Y = -40;
+const GLIDER_LIFT_BASE = 0.0022;
+const GLIDER_DRAG_BASE = 0.0006;
+const GLIDER_TRIM_AOA = 0.08;
+const GLIDER_AOA_LIMIT = Math.PI * 0.5;
+const GLIDER_STEER_BLEND = 0.05;
+const GLIDER_MAX_REDIRECT_RAD_PER_SEC = 2.2;
+const GLIDER_TURN_DRAG = 0.992;
+const COROLLA_SPEED_SCALE = 0.9;
+const COROLLA_ACCEL = 0.02;
+const COROLLA_FLAT_MAX_ANGLE = 10 * Math.PI / 180;
+const COROLLA_GRAVITY = 0.8;
+const COROLLA_AIR_GRAVITY_MULT = 1.6;
+const COROLLA_AIR_DRAG = 0.985;
+const COROLLA_GROUND_DRAG = 0.95;
+const COROLLA_BASE_DURATION = 300;
+
+const UI_FONTS = {
+  title: 'sans-serif',
+  regular: 'sans-serif',
+  subtitle: 'Shadows Into Light',
+  body: 'Shadows Into Light',
+  meta: 'Shadows Into Light',
+  button: 'sans-serif',
+  heading: 'Shadows Into Light',
+  itemTitle: 'Shadows Into Light',
+  statLabel: 'Shadows Into Light',
+  statValue: 'Shadows Into Light',
+  price: 'Shadows Into Light',
+  status: 'Shadows Into Light',
+  watermark: 'Shadows Into Light',
+  tooltip: 'Shadows Into Light',
+  hudMono: 'Shadows Into Light',
+};
+
+const UI_TEXT_COLORS = {
+  title: '#ffffff',
+  subtitle: '#cccccc',
+  body: '#e6f2ff',
+  meta: '#dddddd',
+  heading: '#ffffff',
+  itemTitle: '#ffffff',
+  statLabel: '#bbbbbb',
+  statValue: '#eeeeee',
+  price: '#ffffff',
+  status: '#9bd89b',
+  watermark: '#ffffff',
+  tooltip: '#ffffff',
+  button: '#7b7b7b',
+  muted: '#c9c9c9',
+  hudText: '#ffffff',
+  hudHint: 'rgba(255,255,255,0.8)',
+  hudAccent: '#f5c542',
+  hudObjectiveHorizontal: '#8ecfff',
+  hudObjectiveVertical: '#f5c542',
+};
+
+// ─────────────────────────────────────────────────────────────────────
+//  Singleton objects
+// ─────────────────────────────────────────────────────────────────────
+const baseGame = new Game();
+const ui       = new UIOverlay({ fonts: UI_FONTS, colors: UI_TEXT_COLORS });
+const tutorialDialog = new DialogueOverlay({ fonts: UI_FONTS, colors: UI_TEXT_COLORS });
+const sm       = new SceneManager({ transition: 'fade', fadeDuration: 450 });
+registerGame(baseGame);
+
+// ─────────────────────────────────────────────────────────────────────
+//  Per-run state (reset each launch)
+// ─────────────────────────────────────────────────────────────────────
+let hero, tracker;
+let launched        = false;
+let launchLocked    = false;
+let chargeStart     = 0;
+let chargeAngle     = -45;      // degrees; negative = upward-right
+let fuelLeft        = 0;
+let fuelMax         = 0;
+let boosting        = false;
+let bounceCount     = 0;
+let hFlipFired      = false;    // true once horizontal cutscene shown
+let runCoins        = 0;
+let landmarkCoins   = 0;
+let squashHoldTimer = null;
+let squashIdleTimer = null;
+const particles = [];
+const landmarkParticles = [];
+let rocketAttached = false;
+let hasLandedOnce  = false;
+let eodDelayHandle = null;
+let landmarks = [];
+let impactFeedback = null;
+let impactFeedbackUntil = 0;
+const gliderInput = { left: false, right: false };
+let gliderAngle = 0;
+let physVx = 0;
+let physVy = 0;
+const velocity = { x: 0, y: 0 };
+let corollaDriveLeft = 0;
+let corollaAccelerating = false;
+let lastTickTime = 0;
+let runMaxSpeed = 0;
+let runStartTime = null;
+
+// Terrain: array of {x, y} points loaded from terrain.json
+const terrain = (terrainData?.points ?? []).map(p => ({ x: p.x, y: p.y }));
+const terrainMaxX = terrain.length ? terrain[terrain.length - 1].x : 0;
+const groundYAt = createGroundYAt(terrain, GROUND_Y);
+const landmarkDefs = (terrainData && Array.isArray(terrainData.landmarks) && terrainData.landmarks.length)
+  ? terrainData.landmarks
+  : [];
+
+function resetRun() {
+  if (squashHoldTimer) { clearTimeout(squashHoldTimer); squashHoldTimer = null; }
+  if (squashIdleTimer) { clearTimeout(squashIdleTimer); squashIdleTimer = null; }
+  particles.length = 0;
+  landmarkParticles.length = 0;
+  launched    = false;
+  launchLocked = false;
+  chargeStart = 0;
+  chargeAngle = -45;
+  fuelMax     = fuelCapacity();
+  fuelLeft    = fuelMax;
+  corollaDriveLeft = fuelMax + COROLLA_BASE_DURATION;
+  corollaAccelerating = false;
+  boosting    = false;
+  rocketAttached = moonUnlocked && hasThrusterEquipped();
+  if (isCorollaEquipped()) rocketAttached = false;
+  hasLandedOnce  = false;
+  bounceCount = 0;
+  hFlipFired  = false;
+  runCoins    = 0;
+  landmarkCoins = 0;
+  landmarks = createLandmarks(landmarkDefs, groundYAt);
+  impactFeedback = null;
+  impactFeedbackUntil = 0;
+  gliderAngle = 0;
+  physVx = 0;
+  physVy = 0;
+  velocity.x = 0;
+  velocity.y = 0;
+  corollaDriveLeft = fuelMax + COROLLA_BASE_DURATION;
+  corollaAccelerating = false;
+  // Terrain is static from terrain.json
+
+  // Spawn hero
+  baseGame.characters = [];
+  hero = new Character('hero', LAUNCH_X, LAUNCH_Y);
+  hero.spriteIdFormat = 'hero-ANIMATION-FRAME';
+  hero.animationSpeed = 0.25;
+  baseGame.addCharacter(hero);
+  const worldScale = Math.max(1, window.UI_SCALE || 1);
+  const viewW = W / worldScale;
+  const viewH = H / worldScale;
+  const startGroundY = groundYAt(LAUNCH_X);
+  const desiredGroundScreenY = viewH * START_GROUND_SCREEN_RATIO;
+  const startCamY = Math.round(startGroundY - desiredGroundScreenY);
+  const startCamX = Math.round(LAUNCH_X - (viewW * START_HERO_SCREEN_X));
+  baseGame.camera.x       = startCamX;
+  baseGame.camera.y       = startCamY;
+  baseGame.camera.targetX = startCamX;
+  baseGame.camera.targetY = startCamY;
+  baseGame.camera.followMainCharacter = false;
+
+  // (re)initialize distance triggers for this run
+  initDistanceTriggersLocal();
+
+  tracker = new ProgressTracker(hero, {
+    horizontalThreshold: H_THRESHOLD,
+    verticalThreshold:   V_THRESHOLD,
+    onHorizontalThreshold(dist) {
+      if (hFlipFired) return;
+      hFlipFired = true;
+      moonUnlocked = true;
+      saveState();
+      if (!seenObjectiveCs) {
+        seenObjectiveCs = true;
+        saveState();
+        baseGame.pause();
+        const _next = launched ? 'game' : 'eod';
+        if (_next === 'game') suppressResetOnGameEnter = true;
+        const def = getCutsceneDef(TRIGGER_REACHED_ROCKET);
+        const allowSkip = shouldAllowSkip(TRIGGER_REACHED_ROCKET, def, _cutsceneSeenStore.hasSeen);
+        sm.goTo('cutscene', {
+          fn: objectiveCutscene,
+          next: _next,
+          trigger: TRIGGER_REACHED_ROCKET,
+          allowSkip,
+          onDone: () => { if (_next === 'game') baseGame.resume(); },
+        });
+      }
+    },
+    onVerticalThreshold(height) {
+      if (!seenMoonCs) {
+        seenMoonCs = true;
+        saveState();
+        baseGame.pause();
+        const _next2 = launched ? 'game' : 'eod';
+        if (_next2 === 'game') suppressResetOnGameEnter = true;
+        const def = getCutsceneDef(TRIGGER_MOON);
+        const allowSkip = shouldAllowSkip(TRIGGER_MOON, def, _cutsceneSeenStore.hasSeen);
+        sm.goTo('cutscene', {
+          fn: moonCutscene,
+          next: _next2,
+          trigger: TRIGGER_MOON,
+          allowSkip,
+          onDone: () => { if (_next2 === 'game') baseGame.resume(); },
+        });
+      }
+    },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Input: charge & aim
+// ─────────────────────────────────────────────────────────────────────
+let isCharging = false;
+
+
+function doLaunch() {
+  const chargeTime  = Math.min(performance.now() - chargeStart, 1500); // cap 1.5s
+  const chargePct   = chargeTime / 1500;
+  const power       = launchPower() * (0.3 + chargePct * 0.7);
+  const rad         = chargeAngle * Math.PI / 180;
+
+  hero.dx = Math.cos(rad) * power;
+  hero.dy = Math.sin(rad) * power;
+  launched = true;
+
+  hero.changeAnimation('launch');
+  baseGame.camera.followMainCharacter = true;
+  baseGame.camera.easing = 12;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Physics update (per frame)
+// ─────────────────────────────────────────────────────────────────────
+function gameTick(dt) {
+  const dtSec = typeof dt === 'number' ? dt : (1 / 60);
+  const dtScale = dtSec * 60;
+  if (!launched) {
+    tracker?.update();
+    if (eodDelayHandle) {
+      updateParticles(particles);
+      updateLandmarkParticles(landmarkParticles);
+    }
+    return;
+  }
+
+  if (tutorialDialog.isActive()) tutorialDialog.hide();
+
+  hero.dx = physVx;
+  hero.dy = physVy;
+
+  const gy = groundYAt(hero.x);
+  const inAir = hero.y < gy - 1;
+  const equippedCap = equippedMaxSpeed();
+  const accelScaleFor = (ax, ay) => {
+    if (!(typeof equippedCap === 'number' && isFinite(equippedCap))) return 1;
+    const sp = Math.hypot(physVx, physVy);
+    if (sp <= equippedCap || sp < 0.0001) return 1;
+    // Only damp acceleration that would increase current speed magnitude.
+    const dot = physVx * ax + physVy * ay;
+    if (dot <= 0) return 1;
+    const over = sp - equippedCap;
+    // Exponential damping above cap: preserves existing speed, weakens extra acceleration.
+    return Math.max(0.08, Math.exp(-0.09 * over));
+  };
+
+  const glider = gliderStats();
+  const corolla = glider?.mode === 'corolla' || glider?.id === 'equip-glider-corolla';
+  const groundSlopeAngle = (() => {
+    const dx = 12;
+    const y1 = groundYAt(hero.x - dx);
+    const y2 = groundYAt(hero.x + dx);
+    return Math.atan2(y2 - y1, dx * 2);
+  })();
+  const isGroundFlat = Math.abs(groundSlopeAngle) <= COROLLA_FLAT_MAX_ANGLE;
+
+  if (corolla) {
+    const outOfFuel = corollaDriveLeft <= 0;
+    if (!outOfFuel) corollaDriveLeft -= dtScale;
+    const speed = Math.hypot(physVx, physVy);
+    const turn = (gliderInput.right ? 1 : 0) - (gliderInput.left ? 1 : 0);
+    if (inAir) {
+      if (turn !== 0 && speed > 0.05) {
+        const rateDeg = glider?.turnRate ?? 2.5;
+        const angle = Math.atan2(physVy, physVx) + turn * rateDeg * Math.PI / 180 * dtScale;
+        physVx = Math.cos(angle) * speed;
+        physVy = Math.sin(angle) * speed;
+      }
+      const corollaGrav = COROLLA_GRAVITY * COROLLA_AIR_GRAVITY_MULT;
+      physVy += corollaGrav * dtScale * accelScaleFor(0, corollaGrav);
+      const airDrag = Math.pow(COROLLA_AIR_DRAG, dtScale);
+      physVx *= airDrag;
+      physVy *= airDrag;
+    } else {
+      hero.y = gy;
+      physVy = 0;
+      if (isGroundFlat && corollaAccelerating && !outOfFuel) {
+        const target = launchPower() * COROLLA_SPEED_SCALE;
+        physVx += (target - physVx) * COROLLA_ACCEL * dtScale;
+      } else {
+        physVx *= Math.pow(COROLLA_GROUND_DRAG, dtScale);
+        if (Math.abs(physVx) < 0.02) physVx = 0;
+      }
+    }
+
+    if (outOfFuel && !inAir && Math.hypot(physVx, physVy) <= 0.02) {
+      endRun();
+      return;
+    }
+  } else if (glider && inAir) {
+    const speed = Math.hypot(physVx, physVy);
+    const velAngle = speed > 0.0001 ? Math.atan2(physVy, physVx) : gliderAngle;
+
+    const turn = (gliderInput.right ? 1 : 0) - (gliderInput.left ? 1 : 0);
+    if (turn !== 0) {
+      const rateDeg = glider.turnRate ?? 0;
+      gliderAngle += turn * rateDeg * Math.PI / 180 * dtScale;
+
+      // Turn velocity heading toward glider heading while preserving speed magnitude.
+      if (speed > 0.01) {
+        const steer = 1 - Math.pow(1 - GLIDER_STEER_BLEND, dtScale);
+        let dAng = gliderAngle - velAngle;
+        while (dAng > Math.PI) dAng -= Math.PI * 2;
+        while (dAng < -Math.PI) dAng += Math.PI * 2;
+        const maxRedirect = GLIDER_MAX_REDIRECT_RAD_PER_SEC * dtSec;
+        const redirect = Math.max(-maxRedirect, Math.min(maxRedirect, dAng * steer));
+        const newVelAngle = velAngle + redirect;
+        physVx = Math.cos(newVelAngle) * speed;
+        physVy = Math.sin(newVelAngle) * speed;
+
+        // Turning should always cost some energy; prevents left-right pumping exploit.
+        const turnDrag = Math.pow(GLIDER_TURN_DRAG, dtScale);
+        physVx *= turnDrag;
+        physVy *= turnDrag;
+      }
+    }
+
+    const velAngleNow = Math.hypot(physVx, physVy) > 0.0001 ? Math.atan2(physVy, physVx) : gliderAngle;
+    let aoa = gliderAngle - velAngleNow + GLIDER_TRIM_AOA;
+    while (aoa > Math.PI) aoa -= Math.PI * 2;
+    while (aoa < -Math.PI) aoa += Math.PI * 2;
+
+    aoa = Math.max(-GLIDER_AOA_LIMIT, Math.min(GLIDER_AOA_LIMIT, aoa));
+
+    const gScale = glider.gravityScale ?? 0;
+    const dScale = glider.dragScale ?? 0;
+    const liftCoeff = GLIDER_LIFT_BASE * (1 + gScale * 1.2);
+    const dragCoeff = GLIDER_DRAG_BASE * Math.max(0.2, 1 - dScale * 0.55);
+
+    const lift = liftCoeff * speed * speed * Math.sin(aoa);
+    const drag = dragCoeff * speed * speed * (1 + 0.35 * Math.abs(aoa));
+
+    const vxn = speed > 0.0001 ? physVx / speed : 0;
+    const vyn = speed > 0.0001 ? physVy / speed : 0;
+    const lx = -vyn * lift;
+    const ly = vxn * lift;
+    const dx = -vxn * drag;
+    const dy = -vyn * drag;
+
+    physVx += (dx + lx) * dtScale;
+    physVy += (dy + ly) * dtScale;
+    const glideGravity = GRAVITY * Math.max(0.45, 1 - gScale * 0.4);
+    physVy += glideGravity * dtScale * accelScaleFor(0, glideGravity);
+  } else {
+    physVy += GRAVITY * dtScale * accelScaleFor(0, GRAVITY);
+    const airDrag = Math.pow(AIR_DRAG, dtScale);
+    physVx *= airDrag;
+    physVy *= airDrag;
+  }
+
+  if ((rocketAttached || hasThrusterEquipped()) && boosting && fuelLeft > 0 && boostPower() > 0) {
+    const thrustAmt = boostPower() * 0.06 * dtScale;
+    const speed = Math.hypot(physVx, physVy);
+    if (speed > 0.01) {
+      const nx = physVx / speed;
+      const ny = physVy / speed;
+      const thrustScale = accelScaleFor(nx, ny);
+      physVx += nx * thrustAmt * thrustScale;
+      physVy += ny * thrustAmt * thrustScale;
+    } else {
+      // fallback: apply upward impulse when nearly stationary
+      const thrustScale = accelScaleFor(0, -1);
+      physVy -= thrustAmt * thrustScale;
+    }
+    fuelLeft = Math.max(0, fuelLeft - dtScale);
+    if (fuelLeft === 0) boosting = false;
+    if (Math.random() < 0.4 * dtScale) spawnThrustBurst(particles, hero, { x: physVx, y: physVy });
+  }
+
+  // No direct velocity clamping here: cap affects acceleration only.
+
+  velocity.x = physVx;
+  velocity.y = physVy;
+
+  hero.x += physVx * dtScale;
+  hero.y += physVy * dtScale;
+  hero.dx = 0;
+  hero.dy = 0;
+
+  // track max speed for achievements
+  runMaxSpeed = Math.max(runMaxSpeed, Math.hypot(physVx, physVy));
+
+  checkLandmarkCollisions({
+    landmarks,
+    hero,
+    heroRadius: HERO_RADIUS,
+    velocity,
+    densityBoost,
+    destroyedLandmarks,
+    saveDestroyedLandmarks: () => saveDestroyedLandmarks(destroyedLandmarks),
+    onCoinsAward: (award) => {
+      landmarkCoins += award;
+      coins += award;
+      saveState();
+    },
+    onImpactFeedback: (data, until) => {
+      impactFeedback = data;
+      impactFeedbackUntil = until;
+    },
+    onSpawnExplosion: (x, y) => spawnLandmarkExplosion(landmarkParticles, x, y),
+    onEndRun: () => {
+      hero.changeAnimation('idle');
+      endRun();
+    },
+  });
+
+  const gy2 = groundYAt(hero.x);
+  if (hero.y >= gy2) {
+    hero.y = gy2;
+    if (corolla) {
+      physVy = 0;
+      bounceCount = 0;
+    }
+    if (!hasLandedOnce) {
+      hasLandedOnce = true;
+      rocketAttached = false;
+      boosting = false;
+    }
+    const spd = Math.sqrt(physVx * physVx + physVy * physVy);
+
+    if (!corolla) {
+      if (spd < STOP_THRESH || bounceCount >= 8) {
+        physVx = 0; physVy = 0;
+        triggerEndSquash();
+        endRun();
+        return;
+      }
+
+      physVy = -Math.abs(physVy) * bounceFactor();
+      physVx *= Math.pow(GROUND_DRAG, dtScale);
+      bounceCount++;
+      hero.changeAnimation('bounce');
+      try { triggerSoundEvent('bounce'); } catch (e) { }
+    }
+  }
+
+  const airSpeed = Math.hypot(physVx, physVy);
+  hero.animationSpeed = inAir ? Math.min(1, airSpeed * 0.03) : 0.25;
+
+  baseGame.camera.easing = Math.max(1, 12 - airSpeed * 0.1);
+
+  const hasGlider = !!gliderStats();
+  if (!hasGlider && physVy < -1) hero.changeAnimation('launch');
+  if (rocketAttached || hasGlider) hero.changeAnimation('idle');
+
+  tracker.update();
+  updateParticles(particles);
+  updateLandmarkParticles(landmarkParticles);
+}
+
+function triggerEndSquash() {
+  if (!hero) return;
+  if (squashHoldTimer) { clearTimeout(squashHoldTimer); squashHoldTimer = null; }
+  if (squashIdleTimer) { clearTimeout(squashIdleTimer); squashIdleTimer = null; }
+
+  hero.changeAnimation('bounce');
+  try { triggerSoundEvent('bounce'); } catch (e) { }
+  hero.animationFrame = 0;
+  hero.animationSpeed = 0;
+
+  const frames = 12;
+  const speed = 0.25;
+  const fps = 60;
+  const playMs = (frames / (speed * fps)) * 1000;
+
+  squashHoldTimer = setTimeout(() => {
+    hero.animationSpeed = speed;
+    squashIdleTimer = setTimeout(() => {
+      hero.changeAnimation('idle');
+    }, playMs);
+  }, SQUASH_HOLD_MS);
+}
+
+// Hook into launch so we set physVx/physVy correctly
+function doLaunchActual() {
+  if (launchLocked || launched) return;
+  launchLocked = true;
+  currentDay += 1;
+  saveState();
+  const corolla = isCorollaEquipped();
+  if (corolla) {
+    corollaDriveLeft = fuelCapacity() + COROLLA_BASE_DURATION;
+    corollaAccelerating = true;
+    physVx = 0;
+    physVy = 0;
+    gliderAngle = 0;
+    velocity.x = physVx;
+    velocity.y = physVy;
+    hero.dx = 0;
+    hero.dy = 0;
+    hero.y = groundYAt(hero.x);
+    launched = true;
+    rocketAttached = false;
+    boosting = false;
+    const hasGlider = true;
+    hero.changeAnimation(hasGlider ? 'idle' : 'launch');
+    baseGame.camera.followMainCharacter = true;
+    baseGame.camera.easing = 12;
+    runStartTime = performance.now();
+    runMaxSpeed = 0;
+    try { triggerSoundEvent('music'); } catch (e) { }
+    return;
+  }
+
+  const chargeTime = Math.min(performance.now() - chargeStart, 1500);
+  const chargePct  = chargeTime / 1500;
+  const power      = launchPower() * (0.3 + chargePct * 0.7);
+  const rad        = chargeAngle * Math.PI / 180;
+
+  physVx = Math.cos(rad) * power;
+  physVy = Math.sin(rad) * power;
+  gliderAngle = rad;
+  velocity.x = physVx;
+  velocity.y = physVy;
+  hero.dx = 0;
+  hero.dy = 0;
+  launched = true;
+  runStartTime = performance.now();
+  runMaxSpeed = 0;
+  try { triggerSoundEvent('music'); } catch (e) { }
+
+  const hasGlider = !!gliderStats();
+  hero.changeAnimation(hasGlider ? 'idle' : 'launch');
+  baseGame.camera.followMainCharacter = true;
+  baseGame.camera.easing = 12;
+}
+
+// Patch doLaunch after definition
+// (Input binding moved to lib.mjs)
+bindLauncherInput({
+  canvas,
+  isGameActive: () => sm._current === 'game',
+  isLaunched: () => launched,
+  getIsCharging: () => isCharging,
+  onChargeStart: (now) => {
+    if (isCorollaEquipped()) {
+      chargeStart = now;
+      doLaunchActual();
+      return;
+    }
+    isCharging = true;
+    chargeStart = now;
+  },
+  onChargeEnd: () => {
+    isCharging = false;
+    if (isCorollaEquipped()) corollaAccelerating = false;
+  },
+  onChargeAngle: (angle) => { chargeAngle = angle; },
+  onLaunch: () => doLaunchActual(),
+  getCamera: () => baseGame.camera,
+  getLaunchPos: () => ({ x: LAUNCH_X, y: LAUNCH_Y }),
+  canBoost: () => (hasThrusterEquipped() || rocketAttached) && fuelLeft > 0 && boostPower() > 0,
+  onBoostStart: () => { boosting = true; },
+  onBoostEnd: () => { boosting = false; },
+});
+
+const setCorollaAccelerating = (value) => {
+  if (!isCorollaEquipped()) return;
+  if (sm._current !== 'game') return;
+  if (!launched) return;
+  corollaAccelerating = value;
+};
+
+canvas.addEventListener('mousedown', () => setCorollaAccelerating(true));
+canvas.addEventListener('mouseup', () => setCorollaAccelerating(false));
+canvas.addEventListener('mouseleave', () => setCorollaAccelerating(false));
+canvas.addEventListener('touchstart', () => setCorollaAccelerating(true), { passive: true });
+canvas.addEventListener('touchend', () => setCorollaAccelerating(false));
+canvas.addEventListener('touchcancel', () => setCorollaAccelerating(false));
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft') { gliderInput.left = true; e.preventDefault(); }
+  if (e.key === 'ArrowRight') { gliderInput.right = true; e.preventDefault(); }
+});
+window.addEventListener('keyup', (e) => {
+  if (e.key === 'ArrowLeft') { gliderInput.left = false; e.preventDefault(); }
+  if (e.key === 'ArrowRight') { gliderInput.right = false; e.preventDefault(); }
+});
+
+function endRun() {
+  launched = false;
+  const baseStats = tracker?.getStats() ?? { maxDist: 0, maxHeight: 0 };
+  const flightTime = runStartTime ? ((performance.now() - runStartTime) / 1000) : 0;
+  const stats = Object.assign({}, baseStats, { flightTime, maxSpeed: runMaxSpeed, destroyed: (destroyedLandmarks?.length || 0) });
+  const dist  = Math.round(stats.maxDist || 0);
+  if (dist > bestDist) bestDist = dist;
+  totalRuns++;
+  // Coins: 1 per 30px horizontal + 1 per 20px vertical
+  runCoins = Math.round((stats.maxDist || 0) / 30 + (stats.maxHeight || 0) / 20) + landmarkCoins;
+
+  // check achievements and award coins
+  try {
+    if (typeof achievementsMgr !== 'undefined' && achievementsMgr) {
+      const res = achievementsMgr.checkAndUnlock(stats);
+      if (res.awarded) {
+        coins += res.awarded;
+      }
+    }
+  } catch (e) { console.error('Achievements check failed', e); }
+
+  coins += runCoins;
+  saveState();
+  baseGame.camera.followMainCharacter = false;
+  runStartTime = null;
+  runMaxSpeed = 0;
+
+  deferEod(RESULTS_DELAY_SECONDS + EOD_EXTRA_SECONDS);
+}
+
+function deferEod(seconds) {
+  if (eodDelayHandle) cancelAnimationFrame(eodDelayHandle);
+  let remainingMs = Math.max(0, (seconds ?? 0) * 1000);
+  let last = performance.now();
+  const tick = (now) => {
+    const dt = Math.min(250, now - last);
+    last = now;
+    remainingMs -= dt;
+    if (remainingMs <= 0) {
+      eodDelayHandle = null;
+      const prevTransition = sm._transition;
+      sm._transition = 'cut';
+      sm.goTo('eod');
+      sm._transition = prevTransition;
+      return;
+    }
+    eodDelayHandle = requestAnimationFrame(tick);
+  };
+  eodDelayHandle = requestAnimationFrame(tick);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Cutscene definitions (loaded from cutscenes.json)
+// ─────────────────────────────────────────────────────────────────────
+const { map: _cutsceneMap, defs: _cutsceneDefs } = await loadCutscenes({ getAsset, canvas });
+const _cutsceneDefByTrigger = buildCutsceneDefMap(_cutsceneDefs);
+const _cutsceneSeenStore = createSeenCutsceneStore({
+  storageKey: 'lnch_seen_cutscenes',
+});
+const initCutscene = _cutsceneMap['init'] ?? makeNoopCutscene();
+const introCutscene = _cutsceneMap['intro'] ?? makeNoopCutscene();
+const objectiveCutscene = _cutsceneMap[TRIGGER_REACHED_ROCKET] ?? makeNoopCutscene();
+const moonCutscene = _cutsceneMap[TRIGGER_MOON] ?? makeNoopCutscene();
+
+// Distance-based triggers compiled from JSON definitions
+let _distanceTriggers = [];
+function getCutsceneDef(trigger) {
+  return _cutsceneDefByTrigger.get(trigger);
+}
+function initDistanceTriggersLocal() {
+  _distanceTriggers = initDistanceTriggers(_cutsceneDefs, _cutsceneSeenStore.loadSet());
+}
+
+const cutsceneRunner = new CutsceneRunner();
+let introTick = 0;
+let suppressResetOnGameEnter = false;
+let introClouds = null;
+
+function checkDistanceTriggersLocal() {
+  checkDistanceTriggers({
+    hero,
+    launchY: LAUNCH_Y,
+    triggers: _distanceTriggers,
+    onTrigger: (t) => {
+      const fn = _cutsceneMap[t.trigger] ?? makeNoopCutscene();
+      const allowSkip = shouldAllowSkip(t.trigger, t, _cutsceneSeenStore.hasSeen);
+      baseGame.pause();
+      const nextScene = launched ? 'game' : 'eod';
+      if (nextScene === 'game') suppressResetOnGameEnter = true;
+      sm.goTo('cutscene', {
+        fn,
+        next: nextScene,
+        trigger: t.trigger,
+        allowSkip,
+        onDone: () => { if (nextScene === 'game') baseGame.resume(); },
+      });
+      if (!t.reprompt) {
+        t.fired = true;
+        _cutsceneSeenStore.markSeen(t.trigger);
+      }
+      return true;
+    },
+  });
+}
+
+function startAfterIntro() {
+  if (currentDay === 1 && !seenIntroCs) {
+    seenIntroCs = true;
+    saveState();
+    const def = getCutsceneDef('intro');
+    const allowSkip = shouldAllowSkip('intro', def, _cutsceneSeenStore.hasSeen);
+    sm.goTo('cutscene', { fn: introCutscene, next: 'game', trigger: 'intro', allowSkip });
+  } else {
+    sm.goTo('pregame');
+  }
+}
+
+function drawIntroScene(ctx) {
+  // TODO: add custom canvas-side intro animations here
+  introTick += 1;
+  //const bgAsset = getAsset('bg-pregame');
+   // ctx.drawImage(bgAsset, 0, 0, W, H);
+
+    //linear gradient for sky
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#4a7fc1');
+    g.addColorStop(1, '#a8c8f0');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    // clouds flying past (behind hero)
+    if (!introClouds) {
+      introClouds = [];
+      const count = 6;
+      for (let i = 0; i < count; i++) {
+        introClouds.push({
+          x: Math.random() * W,
+          y: 20 + Math.random() * (H * 0.35),
+          vx: 10 + Math.random() * 40,
+          scale: 0.6 + Math.random() * 1.4,
+          alpha: 0.12 + Math.random() * 0.22,
+        });
+      }
+    }
+    for (const c of introClouds) {
+      const uiScale = (window.UI_SCALE || 1);
+      const cw = 160 * c.scale * uiScale;
+      const ch = 80 * c.scale * uiScale;
+      // move leftwards a bit each frame; faster clouds are larger (parallax)
+      c.x -= (c.vx * 0.016) * (0.6 + c.scale * 0.8);
+      if (c.x < -(cw + 60)) {
+        // pause off-screen briefly by respawning far right
+        c.x = W + Math.max(60, cw * 0.4) + Math.random() * (W * 1.2);
+        c.y = 20 + Math.random() * (H * 0.35);
+        c.vx = 10 + Math.random() * 40;
+        c.scale = 0.6 + Math.random() * 1.4;
+        c.alpha = 0.12 + Math.random() * 0.22;
+      }
+      ctx.save();
+      ctx.globalAlpha = c.alpha;
+      const img = getAsset('cloud-1') || getAsset('cloud-2') || null;
+      if (img) {
+        ctx.drawImage(img, c.x, c.y, cw, ch);
+      } else {
+        // simple soft cloud: three overlapping ellipses
+        ctx.fillStyle = 'rgba(255,255,255,1)';
+        ctx.beginPath();
+        ctx.ellipse(c.x + cw * 0.3, c.y + ch * 0.5, cw * 0.36, ch * 0.36, 0, 0, Math.PI * 2);
+        ctx.ellipse(c.x + cw * 0.6, c.y + ch * 0.4, cw * 0.42, ch * 0.36, 0, 0, Math.PI * 2);
+        ctx.ellipse(c.x + cw * 0.85, c.y + ch * 0.55, cw * 0.3, ch * 0.28, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    //animation of main character flying through sky with launch animation
+    const frames = [];
+    for (let i = 0; i < 12; i++) {
+      const img = getAsset(`hero-launch-${i}`);
+      if (img) frames.push(img);
+    }
+    if (frames.length) {
+      const frame = frames[Math.floor(introTick / 5) % frames.length];
+      const scale = 1.5;
+
+      const w = frame.width * scale;
+      const h = frame.height * scale;
+      const x = (introTick/100 * W % 2000 - 500); 
+      //y does a half-circle rise and fall
+      const y = 300 - Math.sin(introTick/50) * 100 - h/2;
+      ctx.drawImage(frame, x, y, w, h);
+    }
+
+}
+
+function endActiveCutscene() {
+  if (!cutsceneRunner.isActive()) return;
+  cutsceneRunner.end();
+}
+
+function tickCutscene(ctx) {
+  cutsceneRunner.tick(ctx);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Scene: PREGAME
+// ─────────────────────────────────────────────────────────────────────
+sm.register('intro', {
+  onEnter() {
+    introTick = 0;
+    ui.showIntro({
+      title: 'CHICKEN MCSPENCE',
+      subtitle: 'The MyMaccas Chronicles',
+      buttonLabel: 'PLAY',
+      onPlay: () => startAfterIntro(),
+    });
+    try { triggerSoundEvent('intro'); } catch (e) { }
+  },
+  onExit() { ui.hide(); },
+  draw() {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    drawIntroScene(ctx);
+    ui.draw();
+    drawAchievementNotices(ctx);
+  },
+});
+
+// ─────────────────────────────────────────────────────────────────────
+//  Scene: PREGAME
+// ─────────────────────────────────────────────────────────────────────
+sm.register('pregame', {
+  onEnter() {
+    const objectives = landmarkDefs.map(lm => lm?.desc || lm?.name || lm?.id || 'Reach the next landmark');
+    const destroyedSet = destroyedLandmarks instanceof Set
+      ? destroyedLandmarks
+      : new Set(Array.isArray(destroyedLandmarks) ? destroyedLandmarks : []);
+    const nextLandmark = landmarkDefs.findIndex(lm => !destroyedSet.has(lm?.id));
+    const nextObjectiveText = (nextLandmark >= 0 && objectives[nextLandmark])
+      ? objectives[nextLandmark]
+      : 'reach the moon!';
+
+    ui.showPregame({
+      title:       `Day ${currentDay}`,
+      subtitle:    moonUnlocked
+        ? `Objective: reach the moon!\nBest: ${bestDist}m`
+        : `Objective: ${nextObjectiveText}\nBest: ${bestDist}m`,
+      buttonLabel: 'LAUNCH',
+      onLaunch:    () => sm.goTo('game'),
+      onUpgrades:  () => sm.goTo('upgrades'),
+      onIntro:     () => sm.goTo('intro'),
+    });
+  },
+  onExit() { ui.hide(); },
+  draw() {
+    // Draw the launch pad background as the pregame backdrop
+    const ctx = canvas.getContext('2d');
+    ctx.save();
+    const bgAsset = getAsset('bg-pregame');
+    const menuAsset = getAsset('ui-menu-pinboard');
+    if (bgAsset) {
+      ctx.drawImage(bgAsset, 0, 0, W, H);
+      if (menuAsset) {
+        const ms = (window.UI_SCALE || 1);
+        const mw = menuAsset.width * ms;
+        const mh = menuAsset.height * ms;
+        ctx.drawImage(menuAsset, W / 2 - mw / 2, H / 2 - mh / 2, mw, mh);
+      }
+    } else {
+      // Fallback gradient sky
+      const g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#4a7fc1');
+      g.addColorStop(1, '#a8c8f0');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#4A8C3F';
+      ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+    }
+    ctx.restore();
+    ui.draw();
+    drawAchievementNotices(ctx);
+    drawPregamePeek(ctx, { getAsset, W, H });
+  },
+});
+
+// ─────────────────────────────────────────────────────────────────────
+//  Scene: GAME
+// ─────────────────────────────────────────────────────────────────────
+sm.register('game', {
+  onEnter() {
+    if (suppressResetOnGameEnter) {
+      suppressResetOnGameEnter = false;
+    } else {
+      resetRun();
+    }
+    lastTickTime = 0;
+    baseGame.resume();
+    if (currentDay === 1) {
+      tutorialDialog.show({
+        title: 'Tutorial',
+        text: ['Hold to charge.', 'Drag to aim.', 'Release to launch.'],
+        position: 'top',
+      });
+    } else {
+      tutorialDialog.hide();
+    }
+  },
+  onExit() {
+    baseGame.pause();
+    lastTickTime = 0;
+  },
+  update() {
+    const now = performance.now();
+    const dt = lastTickTime ? Math.min(0.05, (now - lastTickTime) / 1000) : (1 / 60);
+    lastTickTime = now;
+    gameTick(dt);
+    baseGame.update(dt);
+    checkDistanceTriggersLocal();
+  },
+  draw() {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    const worldScale = Math.max(1, window.UI_SCALE || 1);
+    const viewW = W / worldScale;
+    const viewH = H / worldScale;
+    ctx.save();
+    ctx.scale(worldScale, worldScale);
+
+    drawBackground(ctx, {
+      camera: baseGame.camera,
+      W: viewW,
+      H: viewH,
+      GROUND_Y,
+      terrain,
+      getAsset,
+      moonUnlocked,
+    });
+
+    // Draw characters via game (applies camera transform)
+    const camX = baseGame.camera.x;
+    const camY = baseGame.camera.y;
+    ctx.save();
+    ctx.translate(-camX, -camY);
+    drawLandmarks(ctx, landmarks, getAsset);
+    drawParticles(ctx, particles, getAsset);
+    drawLandmarkParticles(ctx, landmarkParticles);
+    const glider = gliderStats();
+    const isCorolla = glider?.mode === 'corolla' || glider?.id === 'equip-glider-corolla';
+    const gliderAssetId = glider?.id ? glider.id.replace('equip-', '') : null;
+    const gliderActive = !!gliderAssetId && launched && hero
+      && (isCorolla || hero.y < (groundYAt(hero.x) - 1));
+    for (const c of baseGame.characters) {
+      drawCharacterWithRocket(ctx, c, {
+        hero,
+        rocketAttached,
+        gliderAssetId,
+        gliderActive,
+        gliderAngle,
+        velocity,
+        getAsset,
+        HERO_DRAW_OFFSET_Y,
+      });
+    }
+    ctx.restore();
+    ctx.restore();
+
+    drawHUD(ctx, {
+      tracker,
+      moonUnlocked,
+      bestDist,
+      coins,
+      velocity,
+      maxSpeed: maxSpeedCap(),
+      W,
+      H,
+      launched,
+      rocketAttached,
+      fuelMax: isCorolla ? (fuelCapacity() + COROLLA_BASE_DURATION) : fuelMax,
+      fuelLeft: isCorolla ? Math.max(0, corollaDriveLeft) : fuelLeft,
+      showFuelBar: isCorolla || hasThrusterEquipped(),
+      isCharging,
+      chargeStart,
+      chargeAngle,
+      camera: baseGame.camera,
+      LAUNCH_X,
+      LAUNCH_Y,
+      landmarks,
+      destroyedLandmarks,
+      hero,
+      impactFeedback,
+      impactFeedbackUntil,
+      getAsset,
+      fonts: UI_FONTS,
+      colors: UI_TEXT_COLORS,
+    });
+    tutorialDialog.draw();
+    drawAchievementNotices(ctx);
+  },
+});
+
+// ─────────────────────────────────────────────────────────────────────
+//  Scene: CUTSCENE
+// ─────────────────────────────────────────────────────────────────────
+sm.register('cutscene', {
+  onEnter(data) {
+    cutsceneRunner.start(data.fn, (meta) => {
+      if (meta?.trigger) _cutsceneSeenStore.markSeen(meta.trigger);
+      data.onDone?.();
+      sm.goTo(data.next);
+    }, { trigger: data?.trigger });
+
+    const allowSkip = data?.allowSkip !== false;
+    if (allowSkip) {
+      const skip = () => endActiveCutscene();
+      canvas.addEventListener('click', skip, { once: true });
+      // Store skip handler so we can remove if needed
+      canvas._cutsceneSkip = skip;
+    }
+  },
+  onExit() {
+    if (canvas._cutsceneSkip) {
+      canvas.removeEventListener('click', canvas._cutsceneSkip);
+      canvas._cutsceneSkip = null;
+    }
+  },
+  update() {},
+  draw() {
+    const ctx = canvas.getContext('2d');
+    tickCutscene(ctx);
+    drawAchievementNotices(ctx);
+  },
+});
+
+// ─────────────────────────────────────────────────────────────────────
+//  Scene: EOD (end of run stats)
+// ─────────────────────────────────────────────────────────────────────
+sm.register('eod', {
+  onEnter() {
+    const stats = tracker?.getStats() ?? { maxDist: 0, maxHeight: 0, phase: 'horizontal' };
+    ui.showEOD({
+      stats,
+      coinsEarned: runCoins,
+      impactCoins: landmarkCoins,
+      phase: stats.phase,
+      onContinue: () => sm.goTo('upgrades'),
+    });
+  },
+  onExit() { ui.hide(); },
+  draw() {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    const worldScale = Math.max(1, window.UI_SCALE || 1);
+    const viewW = W / worldScale;
+    const viewH = H / worldScale;
+    ctx.save();
+    ctx.scale(worldScale, worldScale);
+    drawBackground(ctx, {
+      camera: baseGame.camera,
+      W: viewW,
+      H: viewH,
+      GROUND_Y,
+      terrain,
+      getAsset,
+      moonUnlocked,
+    });
+
+    const camX = baseGame.camera.x;
+    const camY = baseGame.camera.y;
+    ctx.save();
+    ctx.translate(-camX, -camY);
+    drawLandmarks(ctx, landmarks, getAsset);
+    drawParticles(ctx, particles, getAsset);
+    drawLandmarkParticles(ctx, landmarkParticles);
+    const glider = gliderStats();
+    const gliderAssetId = glider?.id ? glider.id.replace('equip-', '') : null;
+    const gliderActive = !!gliderAssetId && launched && hero && hero.y < (groundYAt(hero.x) - 1);
+    for (const c of baseGame.characters) {
+      drawCharacterWithRocket(ctx, c, {
+        hero,
+        rocketAttached,
+        gliderAssetId,
+        gliderActive,
+        gliderAngle,
+        velocity,
+        getAsset,
+        HERO_DRAW_OFFSET_Y,
+      });
+    }
+    ctx.restore();
+    ctx.restore();
+    ui.draw();
+    drawAchievementNotices(ctx);
+  },
+});
+
+// ─────────────────────────────────────────────────────────────────────
+//  Scene: UPGRADES
+// ─────────────────────────────────────────────────────────────────────
+sm.register('upgrades', {
+  onEnter() {
+    ui.showUpgrades({
+      upgrades,
+      coins,
+      getLockedIds: getLockedUpgradeIds,
+      categories: upgradeCategories,
+      getEquippedId,
+      onEquip: (id, categoryId) => {
+        if (!categoryId) return;
+        setEquippedId(categoryId, id);
+      },
+      onClose: () => {
+        // Sync coins back out (UIOverlay mutates panel.coins internally)
+        coins = ui._panel?.coins ?? coins;
+        saveState();
+        sm.goTo('pregame');
+      },
+    });
+  },
+  onExit() {
+    // Capture any coin changes made inside the upgrades panel
+    if (ui._panel?.type === 'upgrades') {
+      coins = ui._panel.coins;
+      saveState();
+    }
+    ui.hide();
+  },
+  draw() {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    const bgAsset = getAsset('bg-pregame');
+    if (bgAsset) { ctx.globalAlpha = 0.3; ctx.drawImage(bgAsset, 0, 0, W, H); ctx.globalAlpha = 1; }
+    ui.draw();
+    drawAchievementNotices(ctx);
+  },
+});
+
+
+// ─────────────────────────────────────────────────────────────────────
+//  Utility: get a loaded asset's image element
+// ─────────────────────────────────────────────────────────────────────
+function getAsset(id) {
+  return getAssetImage(id);
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Boot
+// ─────────────────────────────────────────────────────────────────────
+// Intro video is rendered to the canvas by the cutscene module (no DOM element needed)
+
+// Play the 'init' cutscene on every load, then go to the intro scene.
+{
+  const def = getCutsceneDef('init');
+  const allowSkip = shouldAllowSkip('init', def, _cutsceneSeenStore.hasSeen);
+  sm.goTo('cutscene', { fn: initCutscene, next: 'intro', trigger: 'init', allowSkip });
+}
+sm.startLoop();
+
+  </script>
+</body>
+</html>

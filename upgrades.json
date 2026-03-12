@@ -1,0 +1,68 @@
+{
+  "powerCatalog": [
+    { "id": "equip-sling-1", "label": "Rubber Band Launcher", "cost": 80, "power": 20, "icon": "equip-sling-1" },
+    { "id": "equip-sling-2", "label": "Backyard Slingshot", "cost": 160, "power": 24, "icon": "equip-sling-2" },
+    { "id": "equip-sling-3", "label": "Mega Stretch Sling", "cost": 260, "power": 28, "icon": "equip-sling-3" },
+    { "id": "equip-sling-4", "label": "Redneck Catapult", "cost": 380, "power": 32, "icon": "equip-sling-4" },
+    { "id": "equip-sling-5", "label": "Angry Farmer Launcher", "cost": 500, "power": 36, "icon": "equip-sling-5" },
+    { "id": "equip-sling-6", "label": "Tactical Chicken Flipper", "cost": 650, "power": 40, "icon": "equip-sling-6" },
+    { "id": "equip-sling-7", "label": "Industrial Yeet Machine", "cost": 850, "power": 45, "icon": "equip-sling-7" },
+    { "id": "equip-sling-8", "label": "Military Grade Yeeter", "cost": 1100, "power": 50, "icon": "equip-sling-8" },
+    { "id": "equip-sling-9", "label": "Orbital Launch Cannon", "cost": 1350, "power": 60, "icon": "equip-sling-9" },
+    { "id": "equip-sling-10", "label": "Planet Cracker Catapult", "cost": 1600, "power": 75, "icon": "equip-sling-10" }
+  ],
+
+  "bounceCatalog": [
+    { "id": "equip-bounce-1", "label": "Garage Sale Trampolines", "cost": 100, "bounce": 0.45, "icon": "equip-bounce-1" },
+    { "id": "equip-bounce-2", "label": "Bouncy Sneakers", "cost": 200, "bounce": 0.55, "icon": "equip-bounce-2" },
+    { "id": "equip-bounce-3", "label": "Springy Moon Boots", "cost": 320, "bounce": 0.65, "icon": "equip-bounce-3" },
+    { "id": "equip-bounce-4", "label": "Illegal Kangaroo Boots", "cost": 450, "bounce": 0.75, "icon": "equip-bounce-4" }
+  ],
+
+  "densityCatalog": [
+    { "id": "equip-dense-1", "label": "Pots & Pans Armor", "cost": 120, "density": 1.15, "maxSpeed": 20, "icon": "equip-dense-1" },
+    { "id": "equip-dense-2", "label": "Scrap Metal Suit", "cost": 240, "density": 1.95, "maxSpeed": 25, "icon": "equip-dense-2" },
+    { "id": "equip-dense-3", "label": "Industrial Steel Rig", "cost": 380, "density": 3.0, "maxSpeed": 30, "icon": "equip-dense-3" },
+    { "id": "equip-dense-4", "label": "Tank Plating", "cost": 520, "density": 4.5, "maxSpeed": 40, "icon": "equip-dense-4" },
+    { "id": "equip-dense-5", "label": "Black Hole Armor", "cost": 700, "density": 7, "maxSpeed": 60, "icon": "equip-dense-5" }
+  ],
+
+  "fuelCatalog": [
+    { "id": "equip-fuel-1", "label": "Soda Bottle Tank", "cost": 150, "fuel": 100, "icon": "equip-fuel-1" },
+    { "id": "equip-fuel-2", "label": "Jerry Can Pack", "cost": 300, "fuel": 200, "icon": "equip-fuel-2" },
+    { "id": "equip-fuel-3", "label": "BBQ Propane Tank", "cost": 450, "fuel": 300, "icon": "equip-fuel-3" },
+    { "id": "equip-fuel-4", "label": "Truck Fuel Drum", "cost": 650, "fuel": 400, "icon": "equip-fuel-4" },
+    { "id": "equip-fuel-5", "label": "Industrial Fuel Cell", "cost": 800, "fuel": 500, "icon": "equip-fuel-5" },
+    { "id": "equip-fuel-6", "label": "Military Rocket Tank", "cost": 950, "fuel": 600, "icon": "equip-fuel-6" },
+    { "id": "equip-fuel-7", "label": "Experimental Fuel Core", "cost": 1100, "fuel": 700, "icon": "equip-fuel-7" },
+    { "id": "equip-fuel-8", "label": "High Density Reactor Tank", "cost": 1250, "fuel": 800, "icon": "equip-fuel-8" },
+    { "id": "equip-fuel-9", "label": "Orbital Fuel Pod", "cost": 1400, "fuel": 900, "icon": "equip-fuel-9" },
+    { "id": "equip-fuel-10", "label": "Planetary Booster Tank", "cost": 1600, "fuel": 1000, "icon": "equip-fuel-10" },
+    { "id": "equip-fuel-11", "label": "Lunar Reactor", "cost": 1800, "fuel": 1200, "icon": "equip-fuel-11", "unlockRequirements": { "trigger": "moon" } },
+    { "id": "equip-fuel-12", "label": "Fusion Core Tank", "cost": 2000, "fuel": 1400, "icon": "equip-fuel-12", "unlockRequirements": { "trigger": "moon" } },
+    { "id": "equip-fuel-13", "label": "Dark Matter Cell", "cost": 2200, "fuel": 1600, "icon": "equip-fuel-13", "unlockRequirements": { "trigger": "moon" } },
+    { "id": "equip-fuel-14", "label": "Infinite Juice Container", "cost": 2500, "fuel": 2000, "icon": "equip-fuel-14", "unlockRequirements": { "trigger": "moon" } }
+  ],
+
+  "thrusterCatalog": [
+    { "id": "equip-thrust-1", "label": "Kev's Ceiling Fan", "cost": 200, "thrust": 2, "icon": "equip-thrust-1"},
+    { "id": "equip-thrust-2", "label": "AJ's Leaf Blower", "cost": 400, "thrust": 3, "icon": "equip-thrust-2" },
+    { "id": "equip-thrust-3", "label": "Biofuelled Rocket Pack", "cost": 700, "thrust": 4, "icon": "equip-thrust-3" },
+    { "id": "equip-thrust-4", "label": "Military Thruster", "cost": 1000, "thrust": 8, "icon": "equip-thrust-4" },
+    { "id": "equip-thrust-5", "label": "Experimental Warp Drive", "cost": 1300, "thrust": 10, "icon": "equip-thrust-5", "unlockRequirements": { "trigger": "reached-rocket" } },
+    { "id": "equip-thrust-6", "label": "Fusion Generator", "cost": 1600, "thrust": 12, "icon": "equip-thrust-6", "unlockRequirements": { "trigger": "moon" } },
+    { "id": "equip-thrust-7", "label": "Chud Churner 3000", "cost": 2000, "thrust": 15, "icon": "equip-thrust-7", "unlockRequirements": { "trigger": "moon" } }
+  ],
+
+  "gliderCatalog": [
+    { "id": "equip-glider-1", "label": "Cardboard Wings", "cost": 120, "gravityScale": 0.25, "dragScale": 0.5, "turnRate": 1, "icon": "equip-glider-1" },
+    { "id": "equip-glider-2", "label": "Duct Tape Glider", "cost": 240, "gravityScale": 0.3, "dragScale": 0.6, "turnRate": 1.5, "icon": "equip-glider-2" },
+    { "id": "equip-glider-3", "label": "Garage Hang Glider", "cost": 360, "gravityScale": 0.4, "dragScale": 0.7, "turnRate": 2, "icon": "equip-glider-3" },
+    { "id": "equip-glider-4", "label": "Pro Hang Glider", "cost": 520, "gravityScale": 0.5, "dragScale": 0.8, "turnRate": 2.5, "icon": "equip-glider-4" },
+    { "id": "equip-glider-5", "label": "Military Wing Suit", "cost": 700, "gravityScale": 0.65, "dragScale": 0.9, "turnRate": 3, "icon": "equip-glider-5", "unlockRequirements": { "trigger": "reached-rocket" } },
+    { "id": "equip-glider-6", "label": "Experimental Aero Suit", "cost": 900, "gravityScale": 0.7, "dragScale": 0.95, "turnRate": 3.2, "icon": "equip-glider-6", "unlockRequirements": { "trigger": "reached-rocket" } },
+    {"id":"equip-glider-7", "label": "Anti-Gravity Suit", "cost": 1100, "gravityScale": 0.92, "dragScale": 0.99, "turnRate": 3.5, "icon": "equip-glider-7", "unlockRequirements": { "trigger": "moon" } },
+
+    { "id": "equip-glider-corolla", "label": "Toyota Corolla", "cost": 777, "mode": "corolla", "turnRate": 3.2, "icon": "equip-glider-corolla", "unlockRequirements": { "trigger": "moon" } }
+  ]
+}

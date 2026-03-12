@@ -1,0 +1,138 @@
+[
+  { "id": "hero-idle-0", "src": "/img/sprite/kevin/idle/frame000000000000.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-idle-1", "src": "/img/sprite/kevin/idle/frame000000000001.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-idle-2", "src": "/img/sprite/kevin/idle/frame000000000002.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-idle-3", "src": "/img/sprite/kevin/idle/frame000000000003.png", "inCrop": 2, "scale":0.2 },
+
+  { "id": "hero-blink-0",  "src": "/img/sprite/kevin/blink/frame000000000000.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-blink-1",  "src": "/img/sprite/kevin/blink/frame000000000001.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-blink-2",  "src": "/img/sprite/kevin/blink/frame000000000002.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-blink-3",  "src": "/img/sprite/kevin/blink/frame000000000003.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-blink-4",  "src": "/img/sprite/kevin/blink/frame000000000004.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-blink-5",  "src": "/img/sprite/kevin/blink/frame000000000005.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-blink-6",  "src": "/img/sprite/kevin/blink/frame000000000006.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-blink-7",  "src": "/img/sprite/kevin/blink/frame000000000007.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-blink-8",  "src": "/img/sprite/kevin/blink/frame000000000008.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-blink-9",  "src": "/img/sprite/kevin/blink/frame000000000009.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-blink-10", "src": "/img/sprite/kevin/blink/frame000000000010.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-blink-11", "src": "/img/sprite/kevin/blink/frame000000000011.png", "inCrop": 2, "scale":0.2 },
+
+  { "id": "hero-launch-0",  "src": "/img/sprite/kevin/launch/frame000000000000.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-launch-1",  "src": "/img/sprite/kevin/launch/frame000000000001.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-launch-2",  "src": "/img/sprite/kevin/launch/frame000000000002.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-launch-3",  "src": "/img/sprite/kevin/launch/frame000000000003.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-launch-4",  "src": "/img/sprite/kevin/launch/frame000000000004.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-launch-5",  "src": "/img/sprite/kevin/launch/frame000000000005.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-launch-6",  "src": "/img/sprite/kevin/launch/frame000000000006.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-launch-7",  "src": "/img/sprite/kevin/launch/frame000000000007.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-launch-8",  "src": "/img/sprite/kevin/launch/frame000000000008.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-launch-9",  "src": "/img/sprite/kevin/launch/frame000000000009.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-launch-10", "src": "/img/sprite/kevin/launch/frame000000000010.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-launch-11", "src": "/img/sprite/kevin/launch/frame000000000011.png", "inCrop": 2, "scale":0.2 },
+
+  { "id":"hero-eating-0", "src": "/img/sprite/kevin/eating/frame000000000000.png", "inCrop": 2, "scale":0.2 },
+  { "id":"hero-eating-1", "src": "/img/sprite/kevin/eating/frame000000000001.png", "inCrop": 2, "scale":0.2 },
+  { "id":"hero-eating-2", "src": "/img/sprite/kevin/eating/frame000000000002.png", "inCrop": 2, "scale":0.2 },
+  { "id":"hero-eating-3", "src": "/img/sprite/kevin/eating/frame000000000003.png", "inCrop": 2, "scale":0.2 },
+  {"id":"hero-eating-4", "src": "/img/sprite/kevin/eating/frame000000000004.png", "inCrop": 2, "scale":0.2 },
+  {"id":"hero-eating-5", "src": "/img/sprite/kevin/eating/frame000000000005.png", "inCrop": 2, "scale":0.2 },
+  {"id":"hero-eating-6", "src": "/img/sprite/kevin/eating/frame000000000006.png", "inCrop": 2, "scale":0.2 },
+  {"id":"hero-eating-7", "src": "/img/sprite/kevin/eating/frame000000000007.png", "inCrop": 2, "scale":0.2 },
+  {"id":"hero-eating-8", "src": "/img/sprite/kevin/eating/frame000000000008.png", "inCrop": 2, "scale":0.2 },
+  {"id":"hero-eating-9", "src": "/img/sprite/kevin/eating/frame000000000009.png", "inCrop": 2, "scale":0.2 },
+  {"id":"hero-eating-10", "src": "/img/sprite/kevin/eating/frame000000000010.png", "inCrop": 2, "scale":0.2 },
+  {"id":"hero-eating-11", "src": "/img/sprite/kevin/eating/frame000000000011.png", "inCrop": 2, "scale":0.2 },
+
+
+  { "id": "hero-bounce-0", "src": "/img/sprite/kevin/bounce/frame000000000000.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-bounce-1", "src": "/img/sprite/kevin/bounce/frame000000000001.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-bounce-2", "src": "/img/sprite/kevin/bounce/frame000000000002.png", "inCrop": 2, "scale":0.2 },
+  { "id": "hero-bounce-3", "src": "/img/sprite/kevin/bounce/frame000000000003.png", "inCrop": 2, "scale":0.2 },
+
+  { "id": "bg-pregame",    "src": "/img/bg/pregame.png"    },
+  { "id": "bg-hills-far",  "src": "/img/bg/hills_far.png"  },
+  { "id": "bg-hills-near", "src": "/img/bg/hills_near.png" },
+  { "id": "bg-cloud-1",    "src": "/img/bg/cloud-1.png", "scale":0.6   },
+  { "id": "bg-cloud-2",    "src": "/img/bg/cloud-2.png" , "scale": 0.6   },
+  { "id": "bg-cloud-3",    "src": "/img/bg/cloud-3.png" , "scale": 0.6   },
+  { "id": "bg-cloud-4",    "src": "/img/bg/cloud-4.png" , "scale": 0.6   },
+  { "id": "bg-cloud-5",    "src": "/img/bg/cloud-5.png" , "scale": 0.6   },
+  { "id": "bg-moon",       "src": "/img/bg/moon.png", "scale":0.3       },
+  { "id": "bg-launchpad",  "src": "/img/bg/launchpad.png"  },
+
+  { "id": "terrain-grass", "src": "/img/terrain/grass.png", "scale": 0.005 },
+  { "id": "terrain-dirt",  "src": "/img/terrain/dirt.png"  },
+
+  { "id": "cutscene-telescope", "src": "/img/cutscenes/telescope.png" },
+  { "id": "cutscene-moon-land", "src": "/img/cutscenes/moon_land.png" },
+
+  { "id": "landmark-silo", "src": "/img/landmarks/silo.png", "scale":0.7 },
+  { "id": "landmark-dish", "src": "/img/landmarks/dish.png", "scale":0.7 },
+  { "id": "landmark-billboard", "src": "/img/landmarks/billboard.png" },
+  { "id": "landmark-rocket", "src": "/img/landmarks/rocket_pad.png" },
+
+  { "id": "equip-sling-1", "src": "/img/ui/equip_sling_1.png" },
+  { "id": "equip-sling-2", "src": "/img/ui/equip_sling_2.png" },
+  { "id": "equip-sling-3", "src": "/img/ui/equip_sling_3.png" },
+  { "id": "equip-sling-4", "src": "/img/ui/equip_sling_4.png" },
+
+  { "id": "equip-bounce-1", "src": "/img/ui/equip_bounce_1.png" },
+  { "id": "equip-bounce-2", "src": "/img/ui/equip_bounce_2.png" },
+  { "id": "equip-bounce-3", "src": "/img/ui/equip_bounce_3.png" },
+  { "id": "equip-bounce-4", "src": "/img/ui/equip_bounce_4.png" },
+
+  { "id": "equip-dense-1", "src": "/img/ui/equip_dense_1.png" },
+  { "id": "equip-dense-2", "src": "/img/ui/equip_dense_2.png" },
+  { "id": "equip-dense-3", "src": "/img/ui/equip_dense_3.png" },
+  { "id": "equip-dense-4", "src": "/img/ui/equip_dense_4.png" },
+  { "id": "equip-dense-5", "src": "/img/ui/equip_dense_5.png" },
+
+  { "id": "equip-fuel-1", "src": "/img/ui/equip_fuel_1.png" },
+  { "id": "equip-fuel-2", "src": "/img/ui/equip_fuel_2.png" },
+  { "id": "equip-fuel-3", "src": "/img/ui/equip_fuel_3.png" },
+  { "id": "equip-fuel-4", "src": "/img/ui/equip_fuel_4.png" },
+
+  { "id": "equip-thrust-1", "src": "/img/ui/equip_thrust_1.png" },
+  { "id": "equip-thrust-2", "src": "/img/ui/equip_thrust_2.png" },
+  { "id": "equip-thrust-3", "src": "/img/ui/equip_thrust_3.png" },
+  { "id": "equip-thrust-4", "src": "/img/ui/equip_thrust_4.png" },
+  { "id": "equip-thrust-5", "src": "/img/ui/equip_thrust_5.png" },
+  { "id": "equip-thrust-6", "src": "/img/ui/equip_thrust_6.png" },
+  { "id": "equip-thrust-7", "src": "/img/ui/equip_thrust_7.png" },
+
+  { "id": "equip-glider-1", "src": "/img/ui/equip_glider_1.png" },
+  { "id": "equip-glider-2", "src": "/img/ui/equip_glider_2.png" },
+  { "id": "equip-glider-3", "src": "/img/ui/equip_glider_3.png" },
+  { "id": "equip-glider-4", "src": "/img/ui/equip_glider_4.png" },
+  { "id": "equip-glider-5", "src": "/img/ui/equip_glider_5.png" },
+  { "id": "equip-glider-6", "src": "/img/ui/equip_glider_6.png" },
+  { "id": "equip-glider-7", "src": "/img/ui/equip_glider_7.png" },
+  { "id": "equip-glider-corolla", "src": "/img/ui/equip_glider_corolla.png" },
+
+  { "id": "glider-1", "src": "/img/glider/glider_1.png" },
+  { "id": "glider-2", "src": "/img/glider/glider_2.png" },
+  { "id": "glider-3", "src": "/img/glider/glider_3.png" },
+  { "id": "glider-4", "src": "/img/glider/glider_4.png" },
+  { "id": "glider-5", "src": "/img/glider/glider_5.png" },
+  { "id": "glider-6", "src": "/img/glider/glider_6.png" },
+  { "id": "glider-7", "src": "/img/glider/glider_7.png" },
+  { "id": "glider-corolla", "src": "/img/glider/glider_corolla.png" },
+
+  { "id": "ui-locked", "src": "/img/ui/locked.png" },
+  { "id": "ui-arrow", "src": "/img/ui/arrow.png", "scale":0.3 },
+  { "id": "ui-menu-pinboard", "src": "/img/ui/menu_pinboard.png","scale":0.45 },
+  { "id": "ui-menu-bg", "src": "/img/ui/menu_pinboard.png", "scale": 0.45 },
+  { "id": "ui-button-bg", "src": "/img/ui/button_bg.png", "scale": 0.45 },
+  { "id": "ui-upgrade-cell-bg", "src": "/img/ui/upgrade_cell_bg.png", "scale": 0.45, "inCrop":5 },
+  { "id": "ui-upgrade-item-bg", "src": "/img/ui/upgrade_item_bg.png", "scale": 0.45, "inCrop":5 },
+  { "id": "font-shadows-into-light", "src": "/font/ShadowsIntoLight-Regular.ttf", "type": "font", "family": "Shadows Into Light" },
+  { "id": "rocket", "src": "/img/rocket.svg", "scale": 0.6 },
+  { "id": "thrust", "src": "/img/thrust.svg", "scale": 0.6 }
+  ,{ "id": "sfx-bounce", "src": "/sound/bounce.wav", "type": "audio", "event": "bounce" }
+  ,{ "id": "sfx-click", "src": "/sound/click.wav", "type": "audio", "event": "click" }
+  ,{ "id": "bg-music", "src": "/sound/bg_loop.mp3", "type": "audio", "loop": true, "event": "music" }
+  ,{ "id": "intro-retro", "src": "/sound/retro-intro.mp3", "type": "audio", "event": "intro" }
+  ,{ "id": "pre-day-bg", "src": "/sound/pre-day-bg.mp3", "type": "audio", "loop": true, "event": "preday" }
+  ,{ "id": "sfx-eating", "src": "/sound/eating-short.mp3", "type": "audio", "event": "eating" },
+  {"id":"corolla-drive", "src": "/sound/corolla-drive.mp3", "type": "audio", "event": "corolla-drive" }
+]

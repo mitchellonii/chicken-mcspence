@@ -1,0 +1,7 @@
+[
+  { "id": "speedster", "title": "Speedster", "desc": "Reach a top speed of 50 px/s", "metric": "speed", "threshold": 50, "reward": 50 },
+  { "id": "skyward", "title": "Skyward", "desc": "Reach a height of 600 px", "metric": "height", "threshold": 600, "reward": 75 },
+  { "id": "distance_run", "title": "Long Haul", "desc": "Travel 5000 px in a run", "metric": "distance", "threshold": 5000, "reward": 100 },
+  { "id": "airtime", "title": "Hang Time", "desc": "Stay in flight for 20 seconds", "metric": "time", "threshold": 20, "reward": 60 },
+  { "id": "destroyer", "title": "Wrecker", "desc": "Destroy 3 landmarks in one run", "metric": "destroyed", "threshold": 3, "reward": 80 }
+]
